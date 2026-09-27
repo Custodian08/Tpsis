@@ -52,18 +52,30 @@ function validateRequest(data) {
     return 'Поле segments должно содержать не более 1000 сегментов.';
   }
 
+  const patterns = new Set();
+  let assignedClients = 0;
   for (const segment of data.segments) {
     if (
       !segment ||
       typeof segment.segmentName !== 'string' ||
+      segment.segmentName.trim().length === 0 ||
+      segment.segmentName.length > 200 ||
       !decodePattern(segment.rfmPattern, data.quartilesCount) ||
       !Number.isInteger(segment.clientCount) ||
       segment.clientCount < 0 ||
+      segment.clientCount > data.totalClients ||
       !Number.isFinite(segment.avgMonetary) ||
-      typeof segment.avgMonetary !== 'number'
+      typeof segment.avgMonetary !== 'number' ||
+      patterns.has(segment.rfmPattern)
     ) {
       return 'Один из сегментов содержит некорректные данные.';
     }
+    patterns.add(segment.rfmPattern);
+    assignedClients += segment.clientCount;
+  }
+
+  if (assignedClients !== data.totalClients) {
+    return 'Сумма клиентов по сегментам должна совпадать с totalClients.';
   }
 
   return null;
@@ -85,7 +97,8 @@ function interpret(data) {
   const riskSegments = nonEmptySegments.filter(segment => {
     const [r, f, m] = decodePattern(segment.rfmPattern, data.quartilesCount);
     const strongThreshold = Math.max(2, data.quartilesCount - 1);
-    return r <= 2 && f >= strongThreshold && m >= strongThreshold;
+    const lowRecencyThreshold = Math.floor(data.quartilesCount / 2);
+    return r <= lowRecencyThreshold && f >= strongThreshold && m >= strongThreshold;
   });
   const loyalSegments = nonEmptySegments.filter(segment => {
     const [r, f, m] = decodePattern(segment.rfmPattern, data.quartilesCount);
@@ -179,6 +192,10 @@ const server = createServer((request, response) => {
   });
 });
 
-server.listen(port, host, () => {
-  console.log(`Сервис интерпретации RFM запущен на ${host}:${port}`);
-});
+if (require.main === module) {
+  server.listen(port, host, () => {
+    console.log(`Сервис интерпретации RFM запущен на ${host}:${port}`);
+  });
+}
+
+module.exports = { decodePattern, validateRequest, interpret };
