@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 import { rfmService } from '../services/rfm.service';
 import { AnalysisHistoryItem, AnalysisSegmentSummary, FilteredAnalysisResults } from '../types';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 const currency = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'BYN' });
 
@@ -88,7 +89,7 @@ export default function VisualizationPage() {
         setAnalyses(completed);
         setAnalysisId(current => current || String(completed[0]?.id || ''));
       })
-      .catch(err => { if (active) setError(err.response?.data?.message || 'Не удалось загрузить историю анализов'); })
+      .catch(err => { if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить историю анализов.')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -102,7 +103,7 @@ export default function VisualizationPage() {
       search: '', segmentPattern: '', minR: null, maxR: null, minF: null, maxF: null, minM: null, maxM: null,
     }, 1, 25)
       .then(data => { if (active) setResults(data); })
-      .catch(err => { if (active) setError(err.response?.data?.message || 'Не удалось загрузить результат анализа'); })
+      .catch(err => { if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить результат анализа.')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [analysisId]);
@@ -156,7 +157,7 @@ export default function VisualizationPage() {
       <Typography variant="body1" color="text.secondary" gutterBottom>
         Короткие подписи показывают RFM-код или балл. Наведите на диаграмму для пояснений, нажмите элемент для списка клиентов.
       </Typography>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => window.location.reload()}>Повторить</Button>}>{error}</Alert>}
 
       {analyses.length > 0 && (
         <FormControl fullWidth sx={{ mt: 2, mb: 3 }}>

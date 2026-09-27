@@ -19,6 +19,7 @@ import {
 import { OpenInNew as OpenIcon } from '@mui/icons-material';
 import { AnalysisHistoryPage as HistoryPageData } from '../types';
 import { rfmService } from '../services/rfm.service';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 export default function AnalysisHistoryPage() {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function AnalysisHistoryPage() {
     }).then(result => {
       if (active) setData(result);
     }).catch(err => {
-      if (active) setError(err.response?.data?.message || 'Не удалось загрузить историю анализов');
+      if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить историю анализов.'));
     }).finally(() => {
       if (active) setLoading(false);
     });
@@ -95,7 +96,7 @@ export default function AnalysisHistoryPage() {
         </Box>
       </Paper>
 
-      {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 2 }} action={<Button color="inherit" size="small" onClick={() => window.location.reload()}>Повторить</Button>}>{error}</Alert>}
 
       <Paper sx={{ mt: 3 }}>
         {loading ? (

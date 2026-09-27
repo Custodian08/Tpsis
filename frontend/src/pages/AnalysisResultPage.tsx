@@ -39,6 +39,7 @@ import {
 } from 'recharts';
 import { AnalysisClientDetail, AnalysisClientFilters, FilteredAnalysisResults } from '../types';
 import { rfmService } from '../services/rfm.service';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 const initialFilters = (): AnalysisClientFilters => ({
   search: '',
@@ -68,6 +69,7 @@ export default function AnalysisResultPage() {
   const [clientDetail, setClientDetail] = useState<AnalysisClientDetail | null>(null);
   const [clientLoading, setClientLoading] = useState(false);
   const [clientError, setClientError] = useState('');
+  const [clientRetry, setClientRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -81,7 +83,7 @@ export default function AnalysisResultPage() {
     rfmService.getAnalysisClients(configId, appliedFilters, page + 1, 25)
       .then(result => { if (active) setData(result); })
       .catch(err => {
-        if (active) setError(err.response?.data?.message || 'Не удалось загрузить результат анализа');
+        if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить результат анализа.'));
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -98,11 +100,11 @@ export default function AnalysisResultPage() {
     rfmService.getAnalysisClient(configId, selectedClientId)
       .then(detail => { if (active) setClientDetail(detail); })
       .catch(err => {
-        if (active) setClientError(err.response?.data?.message || 'Не удалось загрузить карточку клиента');
+        if (active) setClientError(getApiErrorMessage(err, 'Не удалось загрузить карточку клиента.'));
       })
       .finally(() => { if (active) setClientLoading(false); });
     return () => { active = false; };
-  }, [configId, selectedClientId]);
+  }, [configId, selectedClientId, clientRetry]);
 
   const levels = useMemo(
     () => Array.from({ length: data?.analysisConfig.quartilesCount || 5 }, (_, index) => index + 1),
@@ -168,7 +170,7 @@ export default function AnalysisResultPage() {
         К истории анализов
       </Button>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => window.location.reload()}>Повторить</Button>}>{error}</Alert>}
       {loading && !data ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
       ) : data ? (
@@ -356,7 +358,7 @@ export default function AnalysisResultPage() {
           {clientLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
           ) : clientError ? (
-            <Alert severity="error">{clientError}</Alert>
+            <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => setClientRetry(value => value + 1)}>Повторить</Button>}>{clientError}</Alert>
           ) : clientDetail ? (
             <>
               <Typography variant="h6">{clientDetail.client.fullName || clientDetail.client.clientExternalId}</Typography>

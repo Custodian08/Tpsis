@@ -150,7 +150,7 @@ export default function Layout() {
         <Toolbar>
           <IconButton
             color="inherit"
-            aria-label="open drawer"
+            aria-label="Открыть меню"
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { sm: 'none' }, color: 'primary.main' }}
@@ -219,12 +219,12 @@ export default function Layout() {
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-        aria-label="mailbox folders"
+        aria-label="Основная навигация"
       >
         <Drawer
           variant="temporary"
           open={mobileOpen}
-          onTransitionEnd={handleDrawerToggle}
+          onClose={() => setMobileOpen(false)}
           ModalProps={{
             keepMounted: true,
           }}
@@ -258,7 +258,7 @@ export default function Layout() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, sm: 3 },
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           mt: 8,
           bgcolor: '#f8fafc',

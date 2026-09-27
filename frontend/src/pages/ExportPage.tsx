@@ -16,6 +16,7 @@ import {
 import { Download as DownloadIcon } from '@mui/icons-material';
 import { rfmService } from '../services/rfm.service';
 import { AnalysisClientFilters, AnalysisClientScore, AnalysisHistoryItem, FilteredAnalysisResults } from '../types';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 const emptyFilters = (): AnalysisClientFilters => ({
   search: '', segmentPattern: '', minR: null, maxR: null, minF: null, maxF: null, minM: null, maxM: null,
@@ -59,7 +60,7 @@ export default function ExportPage() {
         setAnalyses(completed);
         setAnalysisId(current => current || String(completed[0]?.id || ''));
       })
-      .catch(err => { if (active) setError(err.response?.data?.message || 'Не удалось загрузить сохранённые анализы'); })
+      .catch(err => { if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить сохранённые анализы.')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -70,7 +71,7 @@ export default function ExportPage() {
     setLoading(true);
     rfmService.getAnalysisClients(Number(analysisId), appliedFilters, 1, 25)
       .then(data => { if (active) { setPreview(data); setError(''); } })
-      .catch(err => { if (active) setError(err.response?.data?.message || 'Не удалось загрузить результат анализа'); })
+      .catch(err => { if (active) setError(getApiErrorMessage(err, 'Не удалось загрузить результат анализа.')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [analysisId, appliedFilters]);
@@ -157,7 +158,7 @@ export default function ExportPage() {
         }, null, 2), 'application/json;charset=utf-8', `${baseName}.json`);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Не удалось сформировать экспорт. Повторите попытку.');
+      setError(getApiErrorMessage(err, 'Не удалось сформировать экспорт. Повторите попытку.'));
     } finally {
       setExporting(false);
     }
@@ -173,7 +174,7 @@ export default function ExportPage() {
       <Typography variant="body1" color="text.secondary" gutterBottom>
         Выберите запуск и фильтры. CSV и JSON содержат детальные оценки клиентов, параметры анализа и применённые условия.
       </Typography>
-      {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mt: 2 }} action={<Button color="inherit" size="small" onClick={() => window.location.reload()}>Повторить</Button>}>{error}</Alert>}
       {analyses.length === 0 ? (
         <Alert severity="info" sx={{ mt: 2 }}>Нет сохранённых результатов для экспорта. Сначала выполните RFM-анализ.</Alert>
       ) : (

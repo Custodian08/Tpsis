@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
+  Avatar,
   Box,
-  Typography,
-  Grid,
-  Paper,
+  Button,
   Card,
   CardContent,
-  Avatar,
+  CircularProgress,
+  Grid,
+  Paper,
+  Typography,
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -15,8 +18,12 @@ import {
   TrendingUp as TrendingUpIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { dataService } from '../services/data.service';
+import { rfmService } from '../services/rfm.service';
 import { useAuthStore } from '../store/authStore';
+import { AnalysisHistoryItem } from '../types';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 interface Stats {
   totalClients: number;
@@ -24,228 +31,129 @@ interface Stats {
   totalRevenue: number;
 }
 
+const currency = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'BYN' });
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const [stats, setStats] = useState<Stats>({
-    totalClients: 0,
-    totalTransactions: 0,
-    totalRevenue: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState('');
+  const [latestAnalysis, setLatestAnalysis] = useState<AnalysisHistoryItem | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
+  const [statsRetry, setStatsRetry] = useState(0);
+  const [historyRetry, setHistoryRetry] = useState(0);
 
   useEffect(() => {
-    loadStats();
-  }, []);
-
-  const loadStats = async () => {
-    try {
-      const data = await dataService.getStats();
+    let active = true;
+    setStatsLoading(true);
+    setStatsError('');
+    dataService.getStats().then(data => {
+      if (!active) return;
       setStats({
-        ...data,
-        totalRevenue: typeof data.totalRevenue === 'string' ? parseFloat(data.totalRevenue) : (data.totalRevenue || 0),
+        totalClients: Number(data.totalClients) || 0,
+        totalTransactions: Number(data.totalTransactions) || 0,
+        totalRevenue: Number(data.totalRevenue) || 0,
       });
-    } catch (error) {
-      console.error('Ошибка при загрузке статистики:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    }).catch(error => {
+      if (active) setStatsError(getApiErrorMessage(error, 'Не удалось получить статистику базы.'));
+    }).finally(() => { if (active) setStatsLoading(false); });
+    return () => { active = false; };
+  }, [statsRetry]);
 
-  const StatCard = ({ 
-    title, 
-    value, 
-    icon, 
-    color, 
-    description 
-  }: { 
-    title: string; 
-    value: string | number; 
-    icon: React.ReactNode; 
-    color: string; 
-    description: string; 
-  }) => (
-    <Card
-      sx={{
-        height: '100%',
-        background: `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`,
-        color: 'white',
-        transition: 'transform 0.3s ease-in-out',
-        '&:hover': {
-          transform: 'translateY(-8px)',
-        },
-      }}
-    >
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Avatar
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.2)',
-              width: 56,
-              height: 56,
-            }}
-          >
-            {icon}
-          </Avatar>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            {loading ? '...' : value}
-          </Typography>
-        </Box>
-        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-          {title}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {description}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
+  useEffect(() => {
+    let active = true;
+    setHistoryLoading(true);
+    setHistoryError('');
+    rfmService.getAnalysisHistory({ page: 1, pageSize: 1 }).then(history => {
+      if (active) setLatestAnalysis(history.items[0] || null);
+    }).catch(error => {
+      if (active) setHistoryError(getApiErrorMessage(error, 'Не удалось загрузить историю анализов.'));
+    }).finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [historyRetry]);
+
+  const statCards = [
+    { title: 'Клиенты', value: stats?.totalClients.toLocaleString('ru-RU') ?? '—', icon: <PeopleIcon />, color: '#6366f1', description: 'Записей в базе данных' },
+    { title: 'Транзакции', value: stats?.totalTransactions.toLocaleString('ru-RU') ?? '—', icon: <ShoppingCartIcon />, color: '#ec4899', description: 'Покупок в базе данных' },
+    { title: 'Сумма покупок', value: stats ? currency.format(stats.totalRevenue) : '—', icon: <AttachMoneyIcon />, color: '#10b981', description: 'Итог по импортированным транзакциям' },
+    { title: 'Средний чек', value: stats ? currency.format(stats.totalTransactions ? stats.totalRevenue / stats.totalTransactions : 0) : '—', icon: <TrendingUpIcon />, color: '#f59e0b', description: 'Средняя сумма транзакции' },
+  ];
 
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-          Добро пожаловать, {user?.fullName?.split(' ')[0]}! 👋
+          Добро пожаловать, {user?.fullName?.split(' ')[0] || 'аналитик'}!
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Обзор системы и ключевые показатели
-        </Typography>
+        <Typography variant="body1" color="text.secondary">Состояние базы и последние результаты анализа</Typography>
       </Box>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Всего клиентов"
-            value={stats.totalClients}
-            icon={<PeopleIcon sx={{ fontSize: 32 }} />}
-            color="#6366f1"
-            description="Количество клиентов в базе данных"
-          />
-        </Grid>
+      {statsError && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" onClick={() => setStatsRetry(value => value + 1)}>Повторить</Button>}>{statsError}</Alert>}
+      {historyError && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" onClick={() => setHistoryRetry(value => value + 1)}>Повторить</Button>}>{historyError}</Alert>}
 
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Всего транзакций"
-            value={stats.totalTransactions}
-            icon={<ShoppingCartIcon sx={{ fontSize: 32 }} />}
-            color="#ec4899"
-            description="Количество транзакций в системе"
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Общая выручка"
-            value={`${stats.totalRevenue.toFixed(2)} руб.`}
-            icon={<AttachMoneyIcon sx={{ fontSize: 32 }} />}
-            color="#10b981"
-            description="Сумма всех транзакций"
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Средний чек"
-            value={`${stats.totalTransactions > 0 ? (stats.totalRevenue / stats.totalTransactions).toFixed(2) : '0'} руб.`}
-            icon={<TrendingUpIcon sx={{ fontSize: 32 }} />}
-            color="#f59e0b"
-            description="Средняя сумма покупки"
-          />
-        </Grid>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {statCards.map(card => (
+          <Grid item xs={12} sm={6} lg={3} key={card.title}>
+            <Card sx={{ height: '100%', background: `linear-gradient(135deg, ${card.color} 0%, ${card.color}dd 100%)`, color: 'white' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>{card.icon}</Avatar>
+                  {statsLoading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : <Typography variant="h5" sx={{ fontWeight: 700, textAlign: 'right', overflowWrap: 'anywhere' }}>{card.value}</Typography>}
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>{card.title}</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>{card.description}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
-          <Paper
-            sx={{
-              p: 3,
-              borderRadius: 3,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              height: '100%',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
-                <AssessmentIcon />
-              </Avatar>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Быстрые действия
-              </Typography>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Avatar sx={{ bgcolor: 'primary.light', mr: 2 }}><AssessmentIcon /></Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>Следующие шаги</Typography>
             </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography variant="body2" sx={{ opacity: 0.9, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 8 }}>•</span>
-                Импортируйте данные о клиентах и транзакциях для начала работы
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 8 }}>•</span>
-                Выполните RFM-анализ для сегментации клиентов
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 8 }}>•</span>
-                Визуализируйте результаты анализа для принятия решений
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 8 }}>•</span>
-                Экспортируйте данные для использования в других системах
-              </Typography>
-            </Box>
+            <Grid container spacing={1}>
+              <Grid item xs={12} sm={6}><Button fullWidth variant="outlined" onClick={() => navigate('/import')}>Загрузить данные</Button></Grid>
+              <Grid item xs={12} sm={6}><Button fullWidth variant="outlined" onClick={() => navigate('/rfm-analysis')}>Выполнить анализ</Button></Grid>
+              <Grid item xs={12} sm={6}><Button fullWidth variant="outlined" onClick={() => navigate('/analysis-history')}>История анализов</Button></Grid>
+              <Grid item xs={12} sm={6}><Button fullWidth variant="outlined" onClick={() => navigate('/export')}>Экспорт результата</Button></Grid>
+            </Grid>
           </Paper>
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: 'text.primary' }}>
-              Статус системы
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>Проверка подключения</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Статус обновляется по ответу сервера статистики и базы данных.
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="body2" color="text.secondary">
-                  База данных
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+              <Typography>Backend и база данных</Typography>
+              {statsLoading ? <CircularProgress size={20} /> : (
+                <Typography color={statsError ? 'error.main' : 'success.main'} fontWeight={600}>
+                  {statsError ? 'Нет ответа' : 'Доступны'}
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Box
-                    sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      bgcolor: '#10b981',
-                      mr: 1,
-                    }}
-                  />
-                  <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 600 }}>
-                    Активна
-                  </Typography>
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="body2" color="text.secondary">
-                  API сервер
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Box
-                    sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      bgcolor: '#10b981',
-                      mr: 1,
-                    }}
-                  />
-                  <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 600 }}>
-                    Работает
-                  </Typography>
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Последний анализ
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Не выполнен
-                </Typography>
-              </Box>
+              )}
             </Box>
+            <Typography variant="subtitle2">Последний анализ</Typography>
+            {historyLoading ? <CircularProgress size={20} sx={{ mt: 1 }} /> : latestAnalysis ? (
+              <Box sx={{ mt: 0.5 }}>
+                <Typography variant="body2">{new Date(latestAnalysis.createdAt).toLocaleString('ru-RU')}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {latestAnalysis.periodStart || 'Старый запуск'} — {latestAnalysis.periodEnd || '—'} · {latestAnalysis.clientsAnalyzed} клиентов · {latestAnalysis.status === 'completed' ? 'завершён' : 'без оценок'}
+                </Typography>
+                <Button size="small" sx={{ mt: 1, px: 0 }} disabled={latestAnalysis.status !== 'completed'} onClick={() => navigate(`/analyses/${latestAnalysis.id}`)}>
+                  Открыть результат
+                </Button>
+              </Box>
+            ) : historyError ? <Typography variant="body2" color="error.main">Не удалось проверить историю</Typography> : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Анализы ещё не выполнялись</Typography>
+            )}
           </Paper>
         </Grid>
       </Grid>

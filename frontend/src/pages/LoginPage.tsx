@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 import { TrendingUp as TrendingUpIcon } from '@mui/icons-material';
 
 export default function LoginPage() {
@@ -33,7 +34,7 @@ export default function LoginPage() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка при входе');
+      setError(getApiErrorMessage(err, 'Не удалось выполнить вход.'));
     } finally {
       setLoading(false);
     }

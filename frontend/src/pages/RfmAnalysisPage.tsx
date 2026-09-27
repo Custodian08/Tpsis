@@ -14,6 +14,7 @@ import {
 import { Analytics as AnalyticsIcon } from '@mui/icons-material';
 import { rfmService } from '../services/rfm.service';
 import { AnalysisResult } from '../types';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 export default function RfmAnalysisPage() {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export default function RfmAnalysisPage() {
       setResult(data);
       navigate(`/analyses/${data.analysisConfigId}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка при выполнении анализа');
+      setError(getApiErrorMessage(err, 'Не удалось выполнить анализ.'));
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ export default function RfmAnalysisPage() {
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert severity="error" sx={{ mt: 2 }} action={<Button color="inherit" size="small" disabled={loading} onClick={handleAnalyze}>Повторить</Button>}>
             {error}
           </Alert>
         )}

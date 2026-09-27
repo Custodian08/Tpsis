@@ -17,14 +17,13 @@ import {
 import { Upload as UploadIcon } from '@mui/icons-material';
 import { dataService } from '../services/data.service';
 import { ImportResult } from '../types';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 const MAX_IMPORT_SIZE_BYTES = 10 * 1024 * 1024;
 
-function getImportErrorMessage(error: any, fallback: string) {
-  const data = error.response?.data;
-  const message = Array.isArray(data?.message)
-    ? data.message.join('\n')
-    : data?.message || fallback;
+function getImportErrorMessage(error: unknown, fallback: string) {
+  const data = (error as any).response?.data;
+  const message = getApiErrorMessage(error, fallback);
   const rowErrors = Array.isArray(data?.errors) ? data.errors.join('\n') : '';
   return rowErrors ? `${message}\n${rowErrors}` : message;
 }
@@ -80,6 +79,12 @@ export default function ImportPage() {
     }
   };
 
+  const retryImport = () => {
+    if (!file) return;
+    if (file.name.toLowerCase().endsWith('.csv')) void handleImportCSV();
+    else if (/\.(xlsx|xls)$/i.test(file.name)) void handleImportExcel();
+  };
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -97,8 +102,10 @@ export default function ImportPage() {
         <TextField
           type="file"
           fullWidth
+          label="Файл с данными"
           onChange={handleFileChange}
-          inputProps={{ accept: '.csv,.xlsx,.xls' }}
+          InputLabelProps={{ shrink: true }}
+          inputProps={{ accept: '.csv,.xlsx,.xls', 'aria-label': 'Выберите файл CSV или Excel' }}
           sx={{ mb: 2 }}
         />
 
@@ -108,12 +115,13 @@ export default function ImportPage() {
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
           <Button
             variant="contained"
             startIcon={<UploadIcon />}
             onClick={handleImportCSV}
             disabled={!file || !file.name.toLowerCase().endsWith('.csv') || loading}
+            aria-busy={loading}
           >
             Импортировать CSV
           </Button>
@@ -122,6 +130,7 @@ export default function ImportPage() {
             startIcon={<UploadIcon />}
             onClick={handleImportExcel}
             disabled={!file || !/\.(xlsx|xls)$/i.test(file.name) || loading}
+            aria-busy={loading}
           >
             Импортировать Excel
           </Button>
@@ -134,14 +143,14 @@ export default function ImportPage() {
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert severity="error" sx={{ mt: 2 }} action={file ? <Button color="inherit" size="small" disabled={loading} onClick={retryImport}>Повторить</Button> : undefined}>
             <span style={{ whiteSpace: 'pre-line' }}>{error}</span>
           </Alert>
         )}
 
         {result && (
-          <Alert severity="success" sx={{ mt: 2 }}>
-            Импорт завершен успешно!
+          <Alert severity={result.errors > 0 ? 'warning' : 'success'} sx={{ mt: 2 }}>
+            Импорт завершён: клиентов — {result.clientsImported}, транзакций — {result.transactionsImported}, ошибок — {result.errors}.
           </Alert>
         )}
       </Paper>

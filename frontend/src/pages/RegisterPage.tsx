@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { getApiErrorMessage } from '../utils/apiErrorMessage';
 import { PersonAdd as PersonAddIcon } from '@mui/icons-material';
 
 export default function RegisterPage() {
@@ -51,7 +52,7 @@ export default function RegisterPage() {
       await register(email, password, fullName);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка при регистрации');
+      setError(getApiErrorMessage(err, 'Не удалось создать учётную запись.'));
     } finally {
       setLoading(false);
     }
