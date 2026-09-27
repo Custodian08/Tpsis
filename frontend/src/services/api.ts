@@ -2,18 +2,14 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: '/api',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Перехватчик для добавления токена
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
@@ -25,7 +21,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || '';
+    const isAuthenticationAttempt = requestUrl.startsWith('/auth/login') || requestUrl.startsWith('/auth/register');
+    if (error.response?.status === 401 && !isAuthenticationAttempt) {
+      localStorage.removeItem('user');
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

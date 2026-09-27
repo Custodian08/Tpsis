@@ -22,7 +22,8 @@ import { SegmentsModule } from './segments/segments.module';
       database: process.env.DB_DATABASE || 'rfm_analysis',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: false, // Отключаем автоматическую синхронизацию, используем SQL скрипты
-      logging: process.env.NODE_ENV === 'development',
+      // Query parameters can include password hashes during account creation.
+      logging: false,
     }),
     AuthModule,
     UsersModule,

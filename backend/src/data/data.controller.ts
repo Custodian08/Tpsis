@@ -2,6 +2,8 @@ import { Controller, Post, Get, UseInterceptors, UploadedFile, BadRequestExcepti
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DataService } from './data.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RequestThrottleGuard } from '../common/guards/request-throttle.guard';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -11,9 +13,11 @@ export class DataController {
   constructor(private readonly dataService: DataService) {}
 
   @Post('import/csv')
+  @UseGuards(RequestThrottleGuard)
+  @RateLimit(20, 60 * 60 * 1000)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: MAX_FILE_SIZE_BYTES },
+      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0, parts: 1 },
     }),
   )
   async importCSV(@UploadedFile() file: Express.Multer.File) {
@@ -24,9 +28,11 @@ export class DataController {
   }
 
   @Post('import/excel')
+  @UseGuards(RequestThrottleGuard)
+  @RateLimit(20, 60 * 60 * 1000)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: MAX_FILE_SIZE_BYTES },
+      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0, parts: 1 },
     }),
   )
   async importExcel(@UploadedFile() file: Express.Multer.File) {

@@ -35,8 +35,13 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+    if (password.length < 8) {
+      setError('Пароль должен содержать минимум 8 символов');
+      return;
+    }
+
+    if (new TextEncoder().encode(password).length > 72) {
+      setError('Пароль слишком длинный: максимум 72 байта в UTF-8');
       return;
     }
 
@@ -211,6 +216,7 @@ export default function RegisterPage() {
                   name="password"
                   label="Пароль"
                   type="password"
+                  helperText="Не менее 8 символов; до 72 байт UTF-8"
                   id="password"
                   autoComplete="new-password"
                   value={password}
