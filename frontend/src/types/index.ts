@@ -137,6 +137,9 @@ export interface AnalysisClientScore {
 
 export interface AnalysisSegmentSummary {
   rfmPattern: string;
+  rScore: number;
+  fScore: number;
+  mScore: number;
   segmentName: string;
   clientCount: number;
   clientShare: number;

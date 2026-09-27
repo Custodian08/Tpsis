@@ -293,6 +293,9 @@ export class RfmService {
         const monetaryTotal = Number(row.monetaryTotal);
         return {
           rfmPattern: row.rfmPattern,
+          rScore: Number(row.rScore),
+          fScore: Number(row.fScore),
+          mScore: Number(row.mScore),
           segmentName: getSegmentName(
             Number(row.rScore),
             Number(row.fScore),

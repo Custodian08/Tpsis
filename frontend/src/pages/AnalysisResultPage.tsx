@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -56,10 +56,11 @@ const currency = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: '
 export default function AnalysisResultPage() {
   const { configId: configIdParam } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const configId = Number(configIdParam);
   const [data, setData] = useState<FilteredAnalysisResults | null>(null);
-  const [filters, setFilters] = useState<AnalysisClientFilters>(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<AnalysisClientFilters>(initialFilters);
+  const [filters, setFilters] = useState<AnalysisClientFilters>(() => filtersFromSearch(searchParams));
+  const [appliedFilters, setAppliedFilters] = useState<AnalysisClientFilters>(() => filtersFromSearch(searchParams));
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -405,4 +406,14 @@ export default function AnalysisResultPage() {
       </Dialog>
     </Box>
   );
+}
+
+function filtersFromSearch(params: URLSearchParams): AnalysisClientFilters {
+  const filters = initialFilters();
+  filters.segmentPattern = params.get('segmentPattern') || '';
+  for (const key of ['minR', 'maxR', 'minF', 'maxF', 'minM', 'maxM'] as const) {
+    const value = params.get(key);
+    if (value !== null && /^\d+$/.test(value)) filters[key] = Number(value);
+  }
+  return filters;
 }
