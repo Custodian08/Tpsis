@@ -1,5 +1,5 @@
 import api from './api';
-import { Client, Transaction, ImportResult } from '../types';
+import { Client, Transaction, ImportResult, PaginatedResponse } from '../types';
 
 export const dataService = {
   async importCSV(file: File): Promise<ImportResult> {
@@ -24,13 +24,13 @@ export const dataService = {
     return response.data;
   },
 
-  async getClients(): Promise<Client[]> {
-    const response = await api.get<Client[]>('/data/clients');
+  async getClients(params: { page?: number; pageSize?: number; search?: string } = {}): Promise<PaginatedResponse<Client>> {
+    const response = await api.get<PaginatedResponse<Client>>('/data/clients', { params });
     return response.data;
   },
 
-  async getTransactions(): Promise<Transaction[]> {
-    const response = await api.get<Transaction[]>('/data/transactions');
+  async getTransactions(params: { page?: number; pageSize?: number; search?: string; clientId?: number; dateFrom?: string; dateTo?: string } = {}): Promise<PaginatedResponse<Transaction>> {
+    const response = await api.get<PaginatedResponse<Transaction>>('/data/transactions', { params });
     return response.data;
   },
 

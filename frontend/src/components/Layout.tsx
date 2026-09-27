@@ -14,7 +14,6 @@ import {
   Typography,
   Menu,
   MenuItem,
-  Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -52,6 +51,7 @@ export default function Layout() {
   const { user, logout } = useAuthStore();
   const isMenuItemSelected = (path: string) =>
     location.pathname === path || (path === '/analysis-history' && location.pathname.startsWith('/analyses/'));
+  const pageTitle = menuItems.find(item => isMenuItemSelected(item.path))?.text || 'RFM Analysis';
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -72,24 +72,23 @@ export default function Layout() {
   };
 
   const drawer = (
-    <div>
-      <Toolbar
-        sx={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-          <TrendingUpIcon sx={{ fontSize: 32, mr: 1 }} />
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
-            RFM Analysis
-          </Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', minHeight: '100%' }}>
+      <Toolbar sx={{ minHeight: '104px !important', px: 2.5, py: 1.5, alignItems: 'flex-start', justifyContent: 'center', flexDirection: 'column', gap: 1, bgcolor: '#14243a', color: 'white' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, gap: 1.25 }}>
+          <Box sx={{ width: 38, height: 38, display: 'grid', placeItems: 'center', borderRadius: 2.5, bgcolor: '#0f766e', color: 'white' }}>
+            <TrendingUpIcon />
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" noWrap component="div" sx={{ fontWeight: 750, letterSpacing: '-0.02em', lineHeight: 1.15 }}>RFM Studio</Typography>
+            <Typography variant="caption" sx={{ color: '#a8b6c8', letterSpacing: '0.04em' }}>АНАЛИТИКА КЛИЕНТОВ</Typography>
+          </Box>
         </Box>
+        <Typography variant="overline" sx={{ color: '#8292a8', fontWeight: 700, letterSpacing: '0.1em', lineHeight: 1 }}>РАБОЧЕЕ ПРОСТРАНСТВО</Typography>
       </Toolbar>
-      <Divider />
-      <List sx={{ px: 2 }}>
+      <Box sx={{ height: 1, bgcolor: 'rgba(255,255,255,0.08)' }} />
+      <List sx={{ px: 1.5, pt: 0.5 }}>
         {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+          <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               selected={isMenuItemSelected(item.path)}
               onClick={() => {
@@ -97,25 +96,29 @@ export default function Layout() {
                 setMobileOpen(false);
               }}
               sx={{
-                borderRadius: 2,
-                py: 1.5,
+                borderRadius: 2.5,
+                py: 1.15,
                 px: 2,
-                transition: 'all 0.2s ease-in-out',
+                color: '#bdc9d8',
+                transition: 'background-color 0.18s ease, color 0.18s ease',
                 '&.Mui-selected': {
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'rgba(45, 212, 191, 0.14)',
                   color: 'white',
+                  boxShadow: 'inset 3px 0 0 #2dd4bf',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'rgba(45, 212, 191, 0.19)',
                   },
                 },
                 '&:hover': {
-                  background: 'rgba(102, 126, 234, 0.1)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: 'white',
                 },
               }}
             >
               <ListItemIcon
                 sx={{
-                  color: isMenuItemSelected(item.path) ? 'white' : 'primary.main',
+                  minWidth: 38,
+                  color: isMenuItemSelected(item.path) ? '#5eead4' : '#91a1b6',
                 }}
               >
                 {item.icon}
@@ -124,14 +127,14 @@ export default function Layout() {
                 primary={item.text}
                 sx={{
                   fontWeight: isMenuItemSelected(item.path) ? 600 : 400,
-                  color: isMenuItemSelected(item.path) ? 'white' : 'text.primary',
+                  color: 'inherit',
                 }}
               />
             </ListItemButton>
           </ListItem>
         ))}
       </List>
-    </div>
+    </Box>
   );
 
   return (
@@ -143,8 +146,9 @@ export default function Layout() {
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           ml: { sm: `${drawerWidth}px` },
-          background: 'white',
-          borderBottom: '1px solid rgba(0,0,0,0.08)',
+          background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid #e7edf3',
         }}
       >
         <Toolbar>
@@ -157,10 +161,9 @@ export default function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-            <TrendingUpIcon sx={{ fontSize: 28, color: 'primary.main', mr: 1 }} />
-            <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, color: 'text.primary' }}>
-              RFM Analysis
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
+            <Typography variant="subtitle1" noWrap component="div" sx={{ fontWeight: 700, color: 'text.primary' }}>
+              {pageTitle}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -174,10 +177,10 @@ export default function Layout() {
               aria-haspopup="true"
               onClick={handleMenuClick}
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
+                background: '#e8f5f3',
+                color: 'primary.dark',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                  background: '#d4efeb',
                 },
               }}
             >
@@ -233,7 +236,12 @@ export default function Layout() {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              borderRight: '1px solid rgba(0,0,0,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'stretch',
+              borderRight: '1px solid rgba(255,255,255,0.06)',
+              backgroundColor: '#14243a',
             },
           }}
         >
@@ -246,7 +254,12 @@ export default function Layout() {
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
-              borderRight: '1px solid rgba(0,0,0,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'stretch',
+              borderRight: '1px solid rgba(255,255,255,0.06)',
+              backgroundColor: '#14243a',
             },
           }}
           open
@@ -261,7 +274,8 @@ export default function Layout() {
           p: { xs: 2, sm: 3 },
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           mt: 8,
-          bgcolor: '#f8fafc',
+          bgcolor: 'background.default',
+          backgroundImage: 'radial-gradient(ellipse at 80% 0%, rgba(20, 184, 166, 0.045), transparent 38%)',
           minHeight: '100vh',
         }}
       >

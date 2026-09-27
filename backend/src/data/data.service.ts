@@ -299,16 +299,53 @@ export class DataService {
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  async getClients() {
-    return this.dataSource.getRepository(Client).find({
-      relations: ['transactions'],
-    });
+  async getClients(query: { page?: number; pageSize?: number; search?: string }) {
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 25;
+    const qb = this.dataSource.getRepository(Client).createQueryBuilder('client');
+    if (query.search?.trim()) {
+      qb.andWhere('(client.fullName ILIKE :search OR client.clientExternalId ILIKE :search OR client.email ILIKE :search)', {
+        search: `%${query.search.trim()}%`,
+      });
+    }
+    const [items, total] = await qb
+      .orderBy('client.id', 'ASC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+    return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getTransactions() {
-    return this.dataSource.getRepository(Transaction).find({
-      relations: ['client'],
-    });
+  async getTransactions(query: { page?: number; pageSize?: number; search?: string; clientId?: number; dateFrom?: string; dateTo?: string }) {
+    if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+      throw new BadRequestException('Начальная дата фильтра должна быть раньше конечной');
+    }
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 25;
+    const qb = this.dataSource.getRepository(Transaction)
+      .createQueryBuilder('transaction')
+      .innerJoin('transaction.client', 'client');
+    if (query.clientId) qb.andWhere('transaction.clientId = :clientId', { clientId: query.clientId });
+    if (query.dateFrom) qb.andWhere('transaction.transactionDate >= :dateFrom', { dateFrom: query.dateFrom });
+    if (query.dateTo) qb.andWhere('transaction.transactionDate <= :dateTo', { dateTo: query.dateTo });
+    if (query.search?.trim()) {
+      qb.andWhere('(client.fullName ILIKE :search OR client.clientExternalId ILIKE :search)', {
+        search: `%${query.search.trim()}%`,
+      });
+    }
+    const [items, total] = await qb
+      .orderBy('transaction.transactionDate', 'DESC')
+      .addOrderBy('transaction.id', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+    return {
+      items: items.map(transaction => ({ ...transaction, amount: Number(transaction.amount) })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async getClientStats() {

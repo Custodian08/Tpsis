@@ -5,9 +5,27 @@
 }
 
 body {
-  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  min-width: 320px;
+  background: #f4f7fa;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  color: #123c3a;
+  background: #b9eee6;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+*:focus-visible {
+  outline: 3px solid rgba(20, 184, 166, 0.55);
+  outline-offset: 2px;
 }
 
 code {

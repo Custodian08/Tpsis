@@ -1,10 +1,18 @@
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
+import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use((request, response, next) => {
+    const requestId = randomUUID();
+    (request as typeof request & { requestId: string }).requestId = requestId;
+    response.setHeader('X-Request-Id', requestId);
+    next();
+  });
   app.use(json({ limit: '100kb' }));
   app.use(urlencoded({ extended: true, limit: '100kb' }));
 
@@ -24,6 +32,7 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+  app.useGlobalFilters(new ApiExceptionFilter());
   
   // CORS для фронтенда
   app.enableCors({
@@ -34,8 +43,12 @@ async function bootstrap() {
   // Префикс для всех API маршрутов
   app.setGlobalPrefix('api');
   
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT || 3000);
   await app.listen(port);
-  console.log(`Приложение запущено на порту ${port}`);
+  new Logger('Bootstrap').log(`Приложение запущено на порту ${port}`);
 }
-bootstrap();
+bootstrap().catch(error => {
+  // Startup diagnostics intentionally omit error details that could contain environment values.
+  new Logger('Bootstrap').error(`Запуск приложения не удался (${error instanceof Error ? error.name : 'UnknownError'}). Проверьте конфигурацию и доступность БД.`);
+  process.exitCode = 1;
+});

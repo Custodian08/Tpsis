@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { SegmentsService } from './segments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -18,7 +18,7 @@ export class SegmentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Request() request) {
-    return this.segmentsService.findOne(+id, request.user.userId);
+  findOne(@Param('id', ParseIntPipe) id: number, @Request() request) {
+    return this.segmentsService.findOne(id, request.user.userId);
   }
 }

@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  Chip,
   Grid,
   Paper,
   Typography,
@@ -82,12 +83,16 @@ export default function DashboardPage() {
   ];
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-          Добро пожаловать, {user?.fullName?.split(' ')[0] || 'аналитик'}!
-        </Typography>
-        <Typography variant="body1" color="text.secondary">Состояние базы и последние результаты анализа</Typography>
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      <Box sx={{ mb: 3.5, display: 'flex', alignItems: { xs: 'flex-start', sm: 'flex-end' }, justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 700, letterSpacing: '.12em' }}>ОБЗОР РАБОЧЕГО ПРОСТРАНСТВА</Typography>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 750, color: 'text.primary', letterSpacing: '-.035em' }}>
+            Добро пожаловать, {user?.fullName?.split(' ')[0] || 'аналитик'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">Ключевые показатели и последние результаты анализа клиентской базы</Typography>
+        </Box>
+        <Chip icon={<AssessmentIcon />} label="RFM-аналитика" sx={{ bgcolor: '#e8f5f3', color: 'primary.dark', fontWeight: 650 }} />
       </Box>
 
       {statsError && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" onClick={() => setStatsRetry(value => value + 1)}>Повторить</Button>}>{statsError}</Alert>}
@@ -96,14 +101,14 @@ export default function DashboardPage() {
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {statCards.map(card => (
           <Grid item xs={12} sm={6} lg={3} key={card.title}>
-            <Card sx={{ height: '100%', background: `linear-gradient(135deg, ${card.color} 0%, ${card.color}dd 100%)`, color: 'white' }}>
-              <CardContent>
+            <Card sx={{ height: '100%', borderTop: `3px solid ${card.color}` }}>
+              <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}>{card.icon}</Avatar>
-                  {statsLoading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : <Typography variant="h5" sx={{ fontWeight: 700, textAlign: 'right', overflowWrap: 'anywhere' }}>{card.value}</Typography>}
+                  <Avatar sx={{ bgcolor: `${card.color}18`, color: card.color, width: 44, height: 44 }}>{card.icon}</Avatar>
+                  {statsLoading ? <CircularProgress size={22} /> : <Typography variant="h5" sx={{ fontWeight: 750, textAlign: 'right', overflowWrap: 'anywhere', letterSpacing: '-.03em' }}>{card.value}</Typography>}
                 </Box>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>{card.title}</Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>{card.description}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{card.title}</Typography>
+                <Typography variant="caption" color="text.secondary">{card.description}</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -112,7 +117,7 @@ export default function DashboardPage() {
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: { xs: 2.5, sm: 3 }, height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Avatar sx={{ bgcolor: 'primary.light', mr: 2 }}><AssessmentIcon /></Avatar>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>Следующие шаги</Typography>
@@ -127,8 +132,8 @@ export default function DashboardPage() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, height: '100%' }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>Проверка подключения</Typography>
+          <Paper sx={{ p: { xs: 2.5, sm: 3 }, height: '100%' }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>Состояние системы</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Статус обновляется по ответу сервера статистики и базы данных.
             </Typography>
@@ -136,7 +141,7 @@ export default function DashboardPage() {
               <Typography>Backend и база данных</Typography>
               {statsLoading ? <CircularProgress size={20} /> : (
                 <Typography color={statsError ? 'error.main' : 'success.main'} fontWeight={600}>
-                  {statsError ? 'Нет ответа' : 'Доступны'}
+                  {statsError ? 'Нет ответа' : 'Подключено'}
                 </Typography>
               )}
             </Box>

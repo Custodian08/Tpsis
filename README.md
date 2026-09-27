@@ -50,7 +50,9 @@ cd "ТПИСИ курсовой проект"
 CREATE DATABASE rfm_analysis;
 ```
 
-Для новой базы выполните `backend/database/init.sql`. Для базы, созданной до текущей версии, примените SQL-миграции по порядку: `backend/database/migrations/001_add_ai_interpretation.sql`, затем `backend/database/migrations/002_store_rfm_calculation_rules.sql`. Запуски, созданные до второй миграции, сохранятся, но у них не будет исходных дат периода.
+Для новой базы выполните `backend/database/init.sql`, затем SQL-миграции `001`, `002`, `003` из `backend/database/migrations` по порядку. Для уже работающей базы применяйте только ещё не выполненные миграции; `003_reliability_constraints.sql` проверяет исторические данные до изменения схемы. Миграции выполняются вручную в pgAdmin, не при старте backend.
+
+**Ограничение текущей схемы:** анализы хранятся отдельно по пользователям, но клиенты и транзакции пока общие для всех учётных записей. Не загружайте в одну установку данные разных организаций до появления владельца/набора данных и миграции существующей базы.
 
 ### 3. Настройка Backend
 
@@ -66,7 +68,7 @@ cd backend
 npm install
 ```
 
-Настройте переменные окружения в файле `.env`:
+Скопируйте `backend/.env.example` в `backend/.env` и заполните значения:
 
 ```env
 # Сервер
@@ -104,6 +106,7 @@ npm run start:dev
 ```
 
 Сервер будет доступен по адресу: http://localhost:3000
+Проверка доступности API и PostgreSQL: `GET http://localhost:3000/api/health` (статус 200 при готовности, 503 если БД недоступна).
 
 ### 4. Запуск интеллектуального микросервиса
 
@@ -234,9 +237,12 @@ Frontend автоматически отправляет HttpOnly-cookie авт�
 #### Данные
 - `POST /api/data/import/csv` - Импорт CSV
 - `POST /api/data/import/excel` - Импорт Excel
-- `GET /api/data/clients` - Список клиентов
-- `GET /api/data/transactions` - Список транзакций
+- `GET /api/data/clients?page=1&pageSize=25&search=` - Страница клиентов с поиском
+- `GET /api/data/transactions?page=1&pageSize=25&clientId=&dateFrom=&dateTo=&search=` - Страница транзакций с фильтрами
 - `GET /api/data/stats` - Статистика
+- `GET /api/health` - Готовность API и PostgreSQL (без авторизации)
+
+Списки данных возвращают `{ items, page, pageSize, total, totalPages }`; размер страницы ограничен 100 записями. Ошибки содержат `statusCode`, безопасное `message`, `requestId`, `timestamp` и `path`. Сведения SQL и тела запросов в журнал не записываются.
 
 #### RFM-анализ
 - `POST /api/rfm/analyze` - Выполнить анализ

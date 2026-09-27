@@ -17,24 +17,24 @@ import { useAuthStore } from './store/authStore';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#6366f1', // Современный фиолетовый
-      light: '#818cf8',
-      dark: '#4f46e5',
+      main: '#0f766e',
+      light: '#ccfbf1',
+      dark: '#115e59',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#ec4899', // Современный розовый
-      light: '#f472b6',
-      dark: '#db2777',
+      main: '#52627a',
+      light: '#e2e8f0',
+      dark: '#334155',
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f8fafc', // Светлый серо-голубой фон
+      default: '#f4f7fa',
       paper: '#ffffff',
     },
     text: {
-      primary: '#1e293b', // Темно-синий текст
-      secondary: '#64748b', // Серый текст
+      primary: '#172b4d',
+      secondary: '#64748b',
     },
     success: {
       main: '#10b981',
@@ -47,10 +47,10 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Inter", "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
       fontWeight: 700,
-      fontSize: '2.5rem',
+      fontSize: '2.25rem',
     },
     h2: {
       fontWeight: 600,
@@ -84,17 +84,12 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          border: '1px solid #e7edf3',
+          boxShadow: '0 2px 8px rgba(23, 43, 77, 0.04)',
           borderRadius: 16,
-          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-          '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-          },
-          '@media (prefers-reduced-motion: reduce)': {
-            transition: 'none',
-            '&:hover': { transform: 'none' },
-          },
+          transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+          '&:hover': { boxShadow: '0 8px 24px rgba(23, 43, 77, 0.08)', borderColor: '#d7e2eb' },
+          '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
         },
       },
     },
@@ -102,13 +97,10 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 10,
-          padding: '10px 24px',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-          transition: 'all 0.2s ease-in-out',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.2)',
-          },
+          padding: '9px 18px',
+          boxShadow: 'none',
+          transition: 'background-color 0.2s ease, box-shadow 0.2s ease',
+          '&:hover': { boxShadow: '0 4px 10px rgba(15, 118, 110, 0.16)' },
           '@media (prefers-reduced-motion: reduce)': {
             transition: 'none',
             '&:hover': { transform: 'none' },
@@ -125,6 +117,9 @@ const theme = createTheme({
         },
       },
     },
+    MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
+    MuiAppBar: { styleOverrides: { root: { backgroundImage: 'none' } } },
+    MuiTableCell: { styleOverrides: { head: { backgroundColor: '#f7f9fb', color: '#52627a', fontWeight: 700 } } },
   },
 });
 

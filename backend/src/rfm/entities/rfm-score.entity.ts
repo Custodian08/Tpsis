@@ -1,9 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable, Unique } from 'typeorm';
 import { AnalysisConfig } from './analysis-config.entity';
 import { Segment } from './segment.entity';
 import { Client } from '../../data/entities/client.entity';
 
 @Entity('rfm_scores')
+@Unique('uq_rfm_scores_analysis_client', ['analysisConfigId', 'clientId'])
 export class RfmScore {
   @PrimaryGeneratedColumn()
   id: number;

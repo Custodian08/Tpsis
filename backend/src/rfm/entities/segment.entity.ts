@@ -9,7 +9,7 @@ export class Segment {
   @Column({ name: 'segment_name', unique: true })
   segmentName: string;
 
-  @Column({ name: 'rfm_pattern' })
+  @Column({ name: 'rfm_pattern', unique: true })
   rfmPattern: string;
 
   @Column({ type: 'text', nullable: true })

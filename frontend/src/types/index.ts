@@ -41,6 +41,14 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface ImportResult {
   clientsImported: number;
   transactionsImported: number;

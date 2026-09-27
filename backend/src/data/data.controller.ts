@@ -1,9 +1,10 @@
-import { Controller, Post, Get, UseInterceptors, UploadedFile, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, UseInterceptors, UploadedFile, BadRequestException, UseGuards, Query } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DataService } from './data.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RequestThrottleGuard } from '../common/guards/request-throttle.guard';
 import { RateLimit } from '../common/decorators/rate-limit.decorator';
+import { DataQueryDto } from './dto/data-query.dto';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -43,13 +44,13 @@ export class DataController {
   }
 
   @Get('clients')
-  getClients() {
-    return this.dataService.getClients();
+  getClients(@Query() query: DataQueryDto) {
+    return this.dataService.getClients(query);
   }
 
   @Get('transactions')
-  getTransactions() {
-    return this.dataService.getTransactions();
+  getTransactions(@Query() query: DataQueryDto) {
+    return this.dataService.getTransactions(query);
   }
 
   @Get('stats')

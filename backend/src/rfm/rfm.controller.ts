@@ -30,8 +30,8 @@ export class RfmController {
   }
 
   @Get('results/:configId')
-  getResults(@Param('configId') configId: string, @Request() request) {
-    return this.rfmService.getResults(+configId, request.user.userId);
+  getResults(@Param('configId', ParseIntPipe) configId: number, @Request() request) {
+    return this.rfmService.getResults(configId, request.user.userId);
   }
 
   @Get('results/:configId/clients')
