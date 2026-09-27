@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>План разработки - Система анализа клиентской базы на основе RFM-анализа</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            font-size: 14pt;
+        }
+        h1 {
+            text-align: center;
+            font-size: 18pt;
+            margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 16pt;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        h3 {
+            font-size: 15pt;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        h4 {
+            font-size: 14pt;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+        p {
+            text-indent: 1.5em;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        .first-paragraph {
+            text-indent: 0;
+        }
+        ul, ol {
+            margin-bottom: 15px;
+        }
+        li {
+            margin-bottom: 8px;
+            text-indent: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13pt;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .phase-box {
+            border: 2px solid #333;
+            padding: 20px;
+            margin: 20px 0;
+            background-color: #fafafa;
+        }
+        .tech-stack {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #2196F3;
+            margin: 15px 0;
+        }
+        .requirement-box {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>ПЛАН РАЗРАБОТКИ ПРОГРАММНОГО СРЕДСТВА</h1>
+    
+    <h2>1. Анализ требований и выбор технологического стека</h2>
+    
+    <div class="requirement-box">
+        <h4>Обязательные требования к проекту:</h4>
+        <ul>
+            <li>Распределенная архитектура: сервер (REST API, JSON) + клиент (отображение данных)</li>
+            <li>Модель данных с нормализацией до 3НФ (если реляционная)</li>
+            <li>Функции авторизации и регистрации пользователей</li>
+            <li>Пользовательский интерфейс на русском языке</li>
+            <li>Соблюдение Code Convention</li>
+            <li>Работа на Windows 8+ без использования IDE</li>
+            <li>Актуальные версии фреймворков (2026 год)</li>
+            <li>Защита данных: шифрование, резервное копирование, хеширование паролей</li>
+            <li>Документация: руководство по установке и руководство пользователя</li>
+        </ul>
+    </div>
+    
+    <div class="tech-stack">
+        <h4>Предлагаемый технологический стек (Node.js + TypeScript):</h4>
+        <p><strong>Серверная часть (Backend):</strong></p>
+        <ul>
+            <li>Язык программирования: TypeScript 5.0+ (мультипарадигменный, транслируется в JavaScript)</li>
+            <li>Среда выполнения: Node.js 20+ (LTS версия)</li>
+            <li>Фреймворк: NestJS 10.0+ (современный архитектурный фреймворк для REST API) или Express.js 4.18+</li>
+            <li>База данных: PostgreSQL 16+ (реляционная СУБД)</li>
+            <li>ORM: TypeORM 0.3+ или Prisma 5.0+ (работа с базой данных)</li>
+            <li>Аутентификация: passport.js + JWT (JSON Web Tokens) + bcrypt/argon2 для хеширования паролей</li>
+            <li>Валидация данных: class-validator + class-transformer</li>
+            <li>Миграции базы данных: TypeORM Migrations или Prisma Migrate</li>
+            <li>Конфигурация: @nestjs/config</li>
+        </ul>
+        
+        <p><strong>Клиентская часть (Frontend):</strong></p>
+        <ul>
+            <li>Язык программирования: TypeScript 5.0+</li>
+            <li>Фреймворк: React 18+ (или Vue.js 3.4+)</li>
+            <li>Сборщик: Vite 5.0+</li>
+            <li>HTTP-клиент: Axios</li>
+            <li>Визуализация данных: Recharts или Chart.js 4+</li>
+            <li>UI-библиотека: Material-UI (MUI) 5+ или Ant Design 5+</li>
+            <li>Управление состоянием: Redux Toolkit или Zustand</li>
+            <li>Маршрутизация: React Router 6+ или Vue Router 4+</li>
+        </ul>
+        
+        <p><strong>Инструменты разработки:</strong></p>
+        <ul>
+            <li>Система контроля версий: Git</li>
+            <li>Менеджер пакетов: npm 10+ или yarn 1.22+ или pnpm 8+</li>
+            <li>Линтер и форматтер: ESLint + Prettier</li>
+            <li>Тестирование: Jest (backend и frontend), Supertest (API тестирование)</li>
+            <li>Упаковка в .exe: pkg или nexe (для Node.js приложения)</li>
+            <li>Docker (опционально) для контейнеризации</li>
+        </ul>
+    </div>
+    
+    <h2>2. Этапы разработки</h2>
+    
+    <div class="phase-box">
+        <h3>Этап 1: Анализ и моделирование предметной области</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Выявление бизнес-потребностей заказчика</li>
+            <li>Анализ предметной области RFM-анализа</li>
+            <li>Построение визуальных моделей в CASE-средстве (StarUML / draw.io):
+                <ul>
+                    <li>Use Case Diagram (диаграмма вариантов использования)</li>
+                    <li>Class Diagram (диаграмма классов)</li>
+                    <li>Sequence Diagram (диаграмма последовательности)</li>
+                    <li>Activity Diagram (диаграмма деятельности)</li>
+                    <li>Entity-Relationship Diagram (ER-диаграмма)</li>
+                </ul>
+            </li>
+            <li>Разработка спецификации требований к программному средству</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Описание предметной области (выполнено)</li>
+            <li>Визуальные модели бизнес-процессов</li>
+            <li>Спецификация функциональных и нефункциональных требований</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 2: Проектирование архитектуры и базы данных</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Проектирование архитектуры клиент-серверного приложения</li>
+            <li>Проектирование реляционной модели данных с нормализацией до 3НФ</li>
+            <li>Разработка схемы базы данных:
+                <ul>
+                    <li>Таблица users (пользователи системы)</li>
+                    <li>Таблица clients (клиенты компании)</li>
+                    <li>Таблица transactions (транзакции/покупки)</li>
+                    <li>Таблица rfm_scores (RFM-оценки)</li>
+                    <li>Таблица segments (сегменты клиентов)</li>
+                    <li>Таблица analysis_configs (конфигурации анализа)</li>
+                </ul>
+            </li>
+            <li>Проектирование REST API (эндпоинты, методы, форматы данных)</li>
+            <li>Проектирование структуры клиентского приложения</li>
+            <li>Проектирование механизмов безопасности</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Архитектурная схема системы</li>
+            <li>ER-диаграмма базы данных</li>
+            <li>Спецификация REST API (Swagger/OpenAPI)</li>
+            <li>Макеты пользовательского интерфейса</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 3: Разработка серверной части (Backend)</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Настройка проекта FastAPI</li>
+            <li>Настройка подключения к PostgreSQL</li>
+            <li>Реализация моделей TypeORM/Prisma (ORM)</li>
+            <li>Создание миграций базы данных (TypeORM Migrations/Prisma Migrate)</li>
+            <li>Реализация системы аутентификации и авторизации:
+                <ul>
+                    <li>Регистрация пользователей</li>
+                    <li>Вход в систему (JWT токены)</li>
+                    <li>Обновление токенов</li>
+                    <li>Хеширование паролей (bcrypt)</li>
+                </ul>
+            </li>
+            <li>Реализация REST API эндпоинтов (NestJS модульная архитектура):
+                <ul>
+                    <li>POST /api/auth/register - регистрация (AuthModule)</li>
+                    <li>POST /api/auth/login - вход (AuthModule)</li>
+                    <li>POST /api/auth/refresh - обновление токена (AuthModule)</li>
+                    <li>POST /api/data/import - импорт данных (DataModule)</li>
+                    <li>GET /api/clients - список клиентов (ClientsModule)</li>
+                    <li>POST /api/rfm/analyze - выполнение RFM-анализа (RFMModule)</li>
+                    <li>GET /api/rfm/results - результаты анализа (RFMModule)</li>
+                    <li>GET /api/segments - список сегментов (SegmentsModule)</li>
+                    <li>GET /api/export/{format} - экспорт данных (ExportModule)</li>
+                </ul>
+            </li>
+            <li>Реализация бизнес-логики RFM-анализа:
+                <ul>
+                    <li>Расчет Recency, Frequency, Monetary</li>
+                    <li>Квантильное ранжирование</li>
+                    <li>Сегментация клиентов</li>
+                </ul>
+            </li>
+            <li>Реализация защиты данных:
+                <ul>
+                    <li>Шифрование передаваемых данных (HTTPS)</li>
+                    <li>Хеширование паролей</li>
+                    <li>Резервное копирование базы данных</li>
+                </ul>
+            </li>
+            <li>Написание unit-тестов для backend</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Работающий REST API сервер</li>
+            <li>Настроенная база данных PostgreSQL</li>
+            <li>Реализованная система аутентификации</li>
+            <li>Реализованный модуль RFM-анализа</li>
+            <li>Тесты backend</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 4: Разработка клиентской части (Frontend)</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Настройка проекта React/Vue с TypeScript</li>
+            <li>Настройка сборщика Vite</li>
+            <li>Установка UI-библиотеки (Material-UI или Ant Design)</li>
+            <li>Реализация навигации (React Router / Vue Router)</li>
+            <li>Реализация HTTP-клиента (Axios) для взаимодействия с API</li>
+            <li>Реализация страниц приложения:
+                <ul>
+                    <li>Страница входа/регистрации</li>
+                    <li>Главная страница (дашборд)</li>
+                    <li>Страница импорта данных</li>
+                    <li>Страница RFM-анализа</li>
+                    <li>Страница визуализации результатов</li>
+                    <li>Страница сегментов</li>
+                    <li>Страница экспорта данных</li>
+                    <li>Страница настроек</li>
+                </ul>
+            </li>
+            <li>Реализация компонентов визуализации данных:
+                <ul>
+                    <li>График распределения клиентов по сегментам</li>
+                    <li>Тепловая карта RFM-матрицы</li>
+                    <li>Диаграмма сравнения сегментов</li>
+                    <li>Таблица с данными клиентов</li>
+                </ul>
+            </li>
+            <li>Реализация интерактивности (фильтры, сортировка)</li>
+            <li>Локализация интерфейса на русский язык</li>
+            <li>Написание unit-тестов для frontend</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Работающее клиентское веб-приложение</li>
+            <li>Реализованные все страницы и компоненты</li>
+            <li>Интерактивные визуализации данных</li>
+            <li>Русскоязычный интерфейс</li>
+            <li>Тесты frontend</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 5: Интеграция и тестирование</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Интеграция клиентской и серверной частей</li>
+            <li>Настройка CORS для взаимодействия</li>
+            <li>Интеграционное тестирование</li>
+            <li>Тестирование пользовательских сценариев:
+                <ul>
+                    <li>Регистрация и вход в систему</li>
+                    <li>Импорт данных</li>
+                    <li>Выполнение RFM-анализа</li>
+                    <li>Визуализация результатов</li>
+                    <li>Экспорт данных</li>
+                </ul>
+            </li>
+            <li>Тестирование безопасности</li>
+            <li>Тестирование производительности</li>
+            <li>Исправление обнаруженных ошибок</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Полностью интегрированная система</li>
+            <li>Результаты тестирования</li>
+            <li>Исправленные ошибки</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 6: Оформление документации</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Разработка руководства по установке (развертыванию):
+                <ul>
+                    <li>Системные требования</li>
+                    <li>Установка PostgreSQL</li>
+                    <li>Установка Python и зависимостей</li>
+                    <li>Настройка окружения</li>
+                    <li>Запуск серверной части</li>
+                    <li>Установка Node.js и зависимостей</li>
+                    <li>Сборка и запуск клиентской части</li>
+                    <li>Настройка конфигурации</li>
+                </ul>
+            </li>
+            <li>Разработка руководства пользователя:
+                <ul>
+                    <li>Обзор возможностей системы</li>
+                    <li>Регистрация и вход</li>
+                    <li>Импорт данных</li>
+                    <li>Выполнение RFM-анализа</li>
+                    <li>Работа с визуализациями</li>
+                    <li>Экспорт результатов</li>
+                    <li>Часто задаваемые вопросы</li>
+                </ul>
+            </li>
+            <li>Подготовка текста программы</li>
+            <li>Создание скриншотов работы системы</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Руководство по установке</li>
+            <li>Руководство пользователя</li>
+            <li>Текст программы</li>
+            <li>Скриншоты работы системы</li>
+        </ul>
+    </div>
+    
+    <div class="phase-box">
+        <h3>Этап 7: Экономическое обоснование</h3>
+        <h4>Задачи:</h4>
+        <ol>
+            <li>Расчет затрат на разработку</li>
+            <li>Расчет затрат на внедрение</li>
+            <li>Оценка экономической эффективности</li>
+            <li>Расчет показателей экономической эффективности</li>
+        </ol>
+        <h4>Результат:</h4>
+        <ul>
+            <li>Экономическое обоснование разработки</li>
+            <li>Расчет экономической эффективности</li>
+        </ul>
+    </div>
+    
+    <h2>3. Структура проекта</h2>
+    
+    <table>
+        <tr>
+            <th>Директория/Файл</th>
+            <th>Описание</th>
+        </tr>
+        <tr>
+            <td>backend/</td>
+            <td>Серверная часть приложения (NestJS)</td>
+        </tr>
+        <tr>
+            <td>backend/src/</td>
+            <td>Исходный код TypeScript</td>
+        </tr>
+        <tr>
+            <td>backend/src/main.ts</td>
+            <td>Точка входа приложения</td>
+        </tr>
+        <tr>
+            <td>backend/src/app.module.ts</td>
+            <td>Корневой модуль NestJS</td>
+        </tr>
+        <tr>
+            <td>backend/src/auth/</td>
+            <td>Модуль аутентификации и авторизации</td>
+        </tr>
+        <tr>
+            <td>backend/src/auth/auth.controller.ts</td>
+            <td>Контроллер auth (register, login, refresh)</td>
+        </tr>
+        <tr>
+            <td>backend/src/auth/auth.service.ts</td>
+            <td>Сервис auth (JWT, bcrypt)</td>
+        </tr>
+        <tr>
+            <td>backend/src/auth/dto/</td>
+            <td>DTO классы для auth (RegisterDto, LoginDto)</td>
+        </tr>
+        <tr>
+            <td>backend/src/clients/</td>
+            <td>Модуль работы с клиентами</td>
+        </tr>
+        <tr>
+            <td>backend/src/clients/clients.controller.ts</td>
+            <td>Контроллер клиентов</td>
+        </tr>
+        <tr>
+            <td>backend/src/clients/clients.service.ts</td>
+            <td>Сервис клиентов</td>
+        </tr>
+        <tr>
+            <td>backend/src/clients/entities/</td>
+            <td>Сущности клиентов (TypeORM/Prisma)</td>
+        </tr>
+        <tr>
+            <td>backend/src/rfm/</td>
+            <td>Модуль RFM-анализа</td>
+        </tr>
+        <tr>
+            <td>backend/src/rfm/rfm.controller.ts</td>
+            <td>Контроллер RFM-анализа</td>
+        </tr>
+        <tr>
+            <td>backend/src/rfm/rfm.service.ts</td>
+            <td>Сервис RFM-анализа (бизнес-логика)</td>
+        </tr>
+        <tr>
+            <td>backend/src/rfm/dto/</td>
+            <td>DTO классы для RFM (AnalyzeDto, ResultsDto)</td>
+        </tr>
+        <tr>
+            <td>backend/src/data/</td>
+            <td>Модуль импорта данных</td>
+        </tr>
+        <tr>
+            <td>backend/src/data/data.controller.ts</td>
+            <td>Контроллер импорта данных</td>
+        </tr>
+        <tr>
+            <td>backend/src/data/data.service.ts</td>
+            <td>Сервис импорта данных (CSV, Excel)</td>
+        </tr>
+        <tr>
+            <td>backend/src/common/</td>
+            <td>Общие модули (guards, decorators, filters)</td>
+        </tr>
+        <tr>
+            <td>backend/src/common/guards/</td>
+            <td>Guards (JwtAuthGuard, RolesGuard)</td>
+        </tr>
+        <tr>
+            <td>backend/src/common/decorators/</td>
+            <td>Декораторы (@Roles, @Public)</td>
+        </tr>
+        <tr>
+            <td>backend/src/common/filters/</td>
+            <td>Фильтры исключений (HttpExceptionFilter)</td>
+        </tr>
+        <tr>
+            <td>backend/src/config/</td>
+            <td>Конфигурация приложения</td>
+        </tr>
+        <tr>
+            <td>backend/src/database/</td>
+            <td>Настройки базы данных</td>
+        </tr>
+        <tr>
+            <td>backend/migrations/</td>
+            <td>Миграции базы данных (TypeORM/Prisma)</td>
+        </tr>
+        <tr>
+            <td>backend/test/</td>
+            <td>Тесты backend (Jest, Supertest)</td>
+        </tr>
+        <tr>
+            <td>backend/package.json</td>
+            <td>Зависимости и скрипты Node.js</td>
+        </tr>
+        <tr>
+            <td>backend/tsconfig.json</td>
+            <td>Конфигурация TypeScript</td>
+        </tr>
+        <tr>
+            <td>backend/nest-cli.json</td>
+            <td>Конфигурация NestJS CLI</td>
+        </tr>
+        <tr>
+            <td>frontend/</td>
+            <td>Клиентская часть приложения (React/Vue)</td>
+        </tr>
+        <tr>
+            <td>frontend/src/</td>
+            <td>Исходный код TypeScript</td>
+        </tr>
+        <tr>
+            <td>frontend/src/main.tsx</td>
+            <td>Точка входа React</td>
+        </tr>
+        <tr>
+            <td>frontend/src/App.tsx</td>
+            <td>Корневой компонент React</td>
+        </tr>
+        <tr>
+            <td>frontend/src/components/</td>
+            <td>Переиспользуемые компоненты</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/</td>
+            <td>Страницы приложения</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/LoginPage.tsx</td>
+            <td>Страница входа</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/RegisterPage.tsx</td>
+            <td>Страница регистрации</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/DashboardPage.tsx</td>
+            <td>Главная страница (дашборд)</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/ImportPage.tsx</td>
+            <td>Страница импорта данных</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/RFMAnalysisPage.tsx</td>
+            <td>Страница RFM-анализа</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/VisualizationPage.tsx</td>
+            <td>Страница визуализации</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/SegmentsPage.tsx</td>
+            <td>Страница сегментов</td>
+        </tr>
+        <tr>
+            <td>frontend/src/pages/ExportPage.tsx</td>
+            <td>Страница экспорта данных</td>
+        </tr>
+        <tr>
+            <td>frontend/src/services/</td>
+            <td>API-сервисы (Axios)</td>
+        </tr>
+        <tr>
+            <td>frontend/src/services/api.ts</td>
+            <td>Настройка Axios baseURL</td>
+        </tr>
+        <tr>
+            <td>frontend/src/services/auth.service.ts</td>
+            <td>Сервис auth API</td>
+        </tr>
+        <tr>
+            <td>frontend/src/services/rfm.service.ts</td>
+            <td>Сервис RFM API</td>
+        </tr>
+        <tr>
+            <td>frontend/src/store/</td>
+            <td>Управление состоянием (Redux/Zustand)</td>
+        </tr>
+        <tr>
+            <td>frontend/src/utils/</td>
+            <td>Утилиты и хелперы</td>
+        </tr>
+        <tr>
+            <td>frontend/src/types/</td>
+            <td>TypeScript типы и интерфейсы</td>
+        </tr>
+        <tr>
+            <td>frontend/src/components/charts/</td>
+            <td>Компоненты графиков (Recharts/Chart.js)</td>
+        </tr>
+        <tr>
+            <td>frontend/public/</td>
+            <td>Статические файлы</td>
+        </tr>
+        <tr>
+            <td>frontend/package.json</td>
+            <td>Зависимости и скрипты Node.js</td>
+        </tr>
+        <tr>
+            <td>frontend/tsconfig.json</td>
+            <td>Конфигурация TypeScript</td>
+        </tr>
+        <tr>
+            <td>frontend/vite.config.ts</td>
+            <td>Конфигурация Vite</td>
+        </tr>
+        <tr>
+            <td>docs/</td>
+            <td>Документация</td>
+        </tr>
+        <tr>
+            <td>docs/installation_guide.md</td>
+            <td>Руководство по установке</td>
+        </tr>
+        <tr>
+            <td>docs/user_guide.md</td>
+            <td>Руководство пользователя</td>
+        </tr>
+        <tr>
+            <td>docs/api_documentation.md</td>
+            <td>Документация API (Swagger)</td>
+        </tr>
+        <tr>
+            <td>diagrams/</td>
+            <td>Диаграммы и схемы</td>
+        </tr>
+    </table>
+    
+    <h2>4. Календарный план</h2>
+    
+    <table>
+        <tr>
+            <th>Этап</th>
+            <th>Сроки (условные)</th>
+            <th>Процент выполнения</th>
+        </tr>
+        <tr>
+            <td>Этап 1: Анализ и моделирование</td>
+            <td>Неделя 1-2</td>
+            <td>15%</td>
+        </tr>
+        <tr>
+            <td>Этап 2: Проектирование архитектуры</td>
+            <td>Неделя 3</td>
+            <td>10%</td>
+        </tr>
+        <tr>
+            <td>Этап 3: Разработка backend</td>
+            <td>Неделя 4-6</td>
+            <td>25%</td>
+        </tr>
+        <tr>
+            <td>Этап 4: Разработка frontend</td>
+            <td>Неделя 7-9</td>
+            <td>25%</td>
+        </tr>
+        <tr>
+            <td>Этап 5: Интеграция и тестирование</td>
+            <td>Неделя 10</td>
+            <td>10%</td>
+        </tr>
+        <tr>
+            <td>Этап 6: Оформление документации</td>
+            <td>Неделя 11</td>
+            <td>10%</td>
+        </tr>
+        <tr>
+            <td>Этап 7: Экономическое обоснование</td>
+            <td>Неделя 12</td>
+            <td>5%</td>
+        </tr>
+    </table>
+    
+    <h2>5. Механизмы обеспечения информационной безопасности</h2>
+    
+    <h4>Защита передаваемых данных:</h4>
+    <ul>
+        <li>Использование HTTPS протокола для взаимодействия клиент-сервер</li>
+        <li>Валидация всех входных данных на сервере</li>
+        <li>Использование CORS для защиты от CSRF-атак</li>
+        <li>Rate limiting для защиты от DDoS-атак</li>
+    </ul>
+    
+    <h4>Защита хранимых данных:</h4>
+    <ul>
+        <li>Хеширование паролей с использованием bcrypt (salt rounds: 12)</li>
+            <li>Шифрование чувствительных данных в базе данных (при необходимости)</li>
+            <li>Регулярное резервное копирование базы данных</li>
+            <li>Использование параметризованных запросов для защиты от SQL-инъекций</li>
+        </ul>
+        
+        <h4>Аутентификация и авторизация:</h4>
+        <ul>
+            <li>Использование JWT токенов для аутентификации</li>
+            <li>Хранение токенов в httpOnly cookies</li>
+            <li>Реализация разграничения прав доступа (RBAC)</li>
+            <li>Истечение срока действия токенов (access token: 15 мин, refresh token: 7 дней)</li>
+        </ul>
+        
+        <h2>6. Соответствие Code Convention</h2>
+        
+        <h4>TypeScript (Backend + Frontend):</h4>
+        <ul>
+            <li>Соблюдение ESLint правил (конфигурация Airbnb или Google)</li>
+            <li>Использование Prettier для форматирования кода</li>
+            <li>Использование strict mode TypeScript (strict: true в tsconfig.json)</li>
+            <li>Использование type annotations для всех функций и переменных</li>
+            <li>Docstrings в формате JSDoc или TSDoc</li>
+            <li>Максимальная длина строки: 100 символов</li>
+            <li>Именование: camelCase для переменных и функций, PascalCase для классов/компонентов/интерфейсов</li>
+            <li>Использование интерфейсов для описания типов объектов</li>
+            <li>Использование enum для константных значений</li>
+            <li>Асинхронный код: async/await вместо Promises</li>
+        </ul>
+        
+        <h4>Дополнительные соглашения для NestJS (Backend):</h4>
+        <ul>
+            <li>Модульная архитектура: разделение на модули (AuthModule, ClientsModule, RFMModule и т.д.)</li>
+            <li>Использование декораторов (@Controller, @Get, @Post, @Body и т.д.)</li>
+            <li>Dependency Injection через конструктор</li>
+            <li>DTO классы с валидацией через class-validator</li>
+            <li>Исключения через встроенные HttpException</li>
+        </ul>
+        
+        <h4>Дополнительные соглашения для React/Vue (Frontend):</h4>
+        <ul>
+            <li>Функциональные компоненты с Hooks (React) или Composition API (Vue)</li>
+            <li>Разделение на компоненты: умные (smart) и презентационные (dumb)</li>
+            <li>Использование TypeScript пропсов (Props interface)</li>
+            <li>Управление состоянием через Redux Toolkit или Zustand</li>
+            <li>CSS Modules или styled-components для стилизации</li>
+        </ul>
+        
+        <h2>Выводы</h2>
+        
+        <p class="first-paragraph">
+            Разработанный план охватывает все этапы создания программного средства для RFM-анализа 
+            клиентской базы в соответствии с обязательными требованиями к курсовому проекту. 
+            Предложенный технологический стек включает современные фреймворки и библиотеки актуальных 
+            версий (2026 год): Node.js 20+ и TypeScript 5.0+ для backend и frontend, NestJS 10.0+ 
+            для REST API, React 18+ или Vue.js 3.4+ для клиентской части, PostgreSQL 16+ для базы данных.
+        </p>
+        
+        <p>
+            Архитектура системы соответствует требованию распределенной природы: серверная часть 
+            на NestJS реализует REST API с передачей данных в формате JSON, клиентская часть на 
+            React/Vue выполняет только отображение полученных данных. Реализованы функции авторизации 
+            и регистрации пользователей с использованием JWT токенов и хеширования паролей (bcrypt/argon2).
+        </p>
+        
+        <p>
+            TypeScript является мультипарадигменным языком, поддерживающим объектно-ориентированный, 
+            функциональный и императивный стили программирования, что соответствует требованию к выбору 
+            языка. Использование единого языка (TypeScript) на всем стеке упрощает разработку и 
+            сопровождение проекта.
+        </p>
+        
+        <p>
+            Пользовательский интерфейс будет полностью на русском языке (за исключением названий 
+            классов, переменных, методов и атрибутов). Код будет соответствовать Code Convention 
+            (ESLint + Prettier для TypeScript). Система будет работать на Windows 8+ без 
+            использования интегрированных средств разработки. Backend часть может быть упакована 
+            в исполняемый файл .exe с помощью pkg или nexe.
+        </p>
+        
+        <p>
+            Предусмотрены механизмы защиты данных: шифрование передаваемых данных (HTTPS), 
+            хеширование паролей (bcrypt/argon2), резервное копирование базы данных. Будет оформлена 
+            необходимая документация: руководство по установке и руководство пользователя.
+        </p>
+</body>
+</html>
