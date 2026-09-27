@@ -50,7 +50,7 @@ cd "ТПИСИ курсовой проект"
 CREATE DATABASE rfm_analysis;
 ```
 
-Для новой базы выполните `backend/database/init.sql`. Для уже существующей базы примените обновление схемы `backend/database/migrations/001_add_ai_interpretation.sql`.
+Для новой базы выполните `backend/database/init.sql`. Для базы, созданной до текущей версии, примените SQL-миграции по порядку: `backend/database/migrations/001_add_ai_interpretation.sql`, затем `backend/database/migrations/002_store_rfm_calculation_rules.sql`. Запуски, созданные до второй миграции, сохранятся, но у них не будет исходных дат периода.
 
 ### 3. Настройка Backend
 
@@ -303,6 +303,8 @@ npm run lint
 - [Описание предметной области](domain_description.html) - Анализ предметной области
 - [План разработки](development_plan.html) - План разработки проекта
 - [Функционал приложения](application_functionality.html) - Описание функционала
+- [Правила расчёта RFM](docs/rfm_calculation_rules.md) - Формулы, границы сегментов и ограничения расчёта
+- [Интеллектуальная интерпретация](docs/intelligence_interpretation.md) - Правила экспертных выводов и их ограничения
 
 ## Лицензия
 

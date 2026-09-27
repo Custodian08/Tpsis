@@ -1,18 +1,28 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
+import { Repository, Between, In, DataSource } from 'typeorm';
 import { RfmScore } from './entities/rfm-score.entity';
 import { Segment } from './entities/segment.entity';
 import { AnalysisConfig } from './entities/analysis-config.entity';
-import { Client } from '../data/entities/client.entity';
 import { Transaction } from '../data/entities/transaction.entity';
 import { IntelligenceService } from './intelligence.service';
+import {
+  calculateClientMetrics,
+  calculateRankScores,
+  getInclusivePeriodDays,
+  getScoreLevel,
+  getSegmentName,
+  parseUtcCalendarDate,
+  RFM_SCORING_METHOD_VERSION,
+} from './rfm-rules';
 
 interface AnalyzeDto {
   startDate: string;
   endDate: string;
   quartilesCount?: number;
 }
+
+const MAX_ANALYSIS_TRANSACTIONS = 100_000;
 
 @Injectable()
 export class RfmService {
@@ -23,107 +33,121 @@ export class RfmService {
     private segmentRepository: Repository<Segment>,
     @InjectRepository(AnalysisConfig)
     private analysisConfigRepository: Repository<AnalysisConfig>,
-    @InjectRepository(Client)
-    private clientRepository: Repository<Client>,
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
+    private readonly dataSource: DataSource,
     private readonly intelligenceService: IntelligenceService,
   ) {}
 
   async analyze(analyzeDto: AnalyzeDto, userId: number) {
     const { startDate, endDate, quartilesCount = 5 } = analyzeDto;
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (start > end) {
+    const start = this.parseDateOnly(startDate, 'Дата начала');
+    const end = this.parseDateOnly(endDate, 'Дата окончания');
+    const analysisPeriod = getInclusivePeriodDays(start, end);
+    if (analysisPeriod === null) {
       throw new BadRequestException('Дата начала должна быть меньше даты окончания');
     }
 
-    // Get transactions within the period
     const transactions = await this.transactionRepository.find({
       where: {
         transactionDate: Between(start, end),
       },
       relations: ['client'],
+      take: MAX_ANALYSIS_TRANSACTIONS + 1,
     });
+
+    if (transactions.length > MAX_ANALYSIS_TRANSACTIONS) {
+      throw new BadRequestException(
+        `За период найдено более ${MAX_ANALYSIS_TRANSACTIONS} транзакций. Уточните период анализа.`,
+      );
+    }
 
     if (transactions.length === 0) {
       throw new BadRequestException('Нет транзакций за указанный период');
     }
 
     // Calculate RFM metrics for each client
-    const clientMetrics = this.calculateClientMetrics(transactions, end);
+    const clientMetrics = calculateClientMetrics(transactions, end);
 
     // Rank tied values as one group so duplicate metric values do not get
     // split across different RFM scores or collapse into an extreme score.
-    const recencyScores = this.calculateScores(
+    const recencyScores = calculateRankScores(
       clientMetrics.map(metric => metric.recency),
       quartilesCount,
       true,
     );
-    const frequencyScores = this.calculateScores(
+    const frequencyScores = calculateRankScores(
       clientMetrics.map(metric => metric.frequency),
       quartilesCount,
       false,
     );
-    const monetaryScores = this.calculateScores(
+    const monetaryScores = calculateRankScores(
       clientMetrics.map(metric => metric.monetary),
       quartilesCount,
       false,
     );
 
-    // Create analysis config
-    const analysisConfig = this.analysisConfigRepository.create({
-      userId,
-      configName: `Анализ ${startDate} - ${endDate}`,
-      analysisPeriod: Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)),
-      quartilesCount,
-    });
-    const savedConfig = await this.analysisConfigRepository.save(analysisConfig);
+    // Ensure only observed segment patterns are present in the shared catalog.
+    const patterns = [...new Set(clientMetrics.map((_, index) =>
+      `${recencyScores[index]}${frequencyScores[index]}${monetaryScores[index]}`,
+    ))];
+    const segments = await this.createOrUpdateSegments(patterns);
 
-    // Create or update segments
-    const segments = await this.createOrUpdateSegments(quartilesCount);
-
-    // Calculate RFM scores and save results
-    const rfmScores = [];
-    for (const [index, metric] of clientMetrics.entries()) {
-      const rScore = recencyScores[index];
-      const fScore = frequencyScores[index];
-      const mScore = monetaryScores[index];
-
-      const rfmSegment = `${rScore}${fScore}${mScore}`;
-
-      const rfmScore = this.rfmScoreRepository.create({
-        clientId: metric.clientId,
-        analysisConfigId: savedConfig.id,
-        recencyDays: metric.recency,
-        frequencyCount: metric.frequency,
-        monetaryValue: metric.monetary,
-        rScore,
-        fScore,
-        mScore,
-        rfmSegment,
-        analysisDate: new Date(),
+    // Persist configuration, client scores and their segment links atomically.
+    const { savedConfig, rfmScores } = await this.dataSource.transaction(async manager => {
+      const configRepository = manager.getRepository(AnalysisConfig);
+      const scoreRepository = manager.getRepository(RfmScore);
+      const analysisConfig = configRepository.create({
+        userId,
+        configName: `Анализ ${startDate} - ${endDate}`,
+        analysisPeriod,
+        periodStart: startDate,
+        periodEnd: endDate,
+        referenceDate: endDate,
+        quartilesCount,
+        scoringMethodVersion: RFM_SCORING_METHOD_VERSION,
       });
+      const config = await configRepository.save(analysisConfig);
+      const scoreEntities = clientMetrics.map((metric, index) => {
+        const rScore = recencyScores[index];
+        const fScore = frequencyScores[index];
+        const mScore = monetaryScores[index];
+        return scoreRepository.create({
+          clientId: metric.clientId,
+          analysisConfigId: config.id,
+          recencyDays: metric.recency,
+          frequencyCount: metric.frequency,
+          monetaryValue: metric.monetary,
+          rScore,
+          fScore,
+          mScore,
+          rfmSegment: `${rScore}${fScore}${mScore}`,
+          analysisDate: new Date(),
+        });
+      });
+      const savedScores = await scoreRepository.save(scoreEntities, { chunk: 500 });
 
-      const savedScore = await this.rfmScoreRepository.save(rfmScore);
-      
-      // Add to corresponding segment
-      const segment = segments.find(s => s.rfmPattern === rfmSegment);
-      if (segment) {
-        // Direct insert into junction table
-        await this.rfmScoreRepository
+      const scoresByPattern = new Map<string, RfmScore[]>();
+      for (const score of savedScores) {
+        const grouped = scoresByPattern.get(score.rfmSegment) || [];
+        grouped.push(score);
+        scoresByPattern.set(score.rfmSegment, grouped);
+      }
+      for (const [pattern, groupedScores] of scoresByPattern) {
+        const segment = segments.find(item => item.rfmPattern === pattern);
+        if (!segment) continue;
+        await scoreRepository
           .createQueryBuilder()
-          .relation(RfmScore, "segments")
-          .of(savedScore)
+          .relation(RfmScore, 'segments')
+          .of(groupedScores)
           .add(segment);
       }
 
-      rfmScores.push(savedScore);
-    }
+      return { savedConfig: config, rfmScores: savedScores };
+    });
 
-    const segmentSummaries = await this.buildSegmentSummaries(rfmScores);
+    const segmentSummaries = await this.buildSegmentSummaries(rfmScores, quartilesCount);
     const interpretation = await this.intelligenceService.interpret(
       rfmScores.length,
       quartilesCount,
@@ -139,6 +163,7 @@ export class RfmService {
 
     return {
       analysisConfigId: savedConfig.id,
+      analysisConfig: this.toPublicConfig(savedConfig),
       clientsAnalyzed: rfmScores.length,
       rfmScores: rfmScores.map(score => ({
         clientId: score.clientId,
@@ -155,152 +180,46 @@ export class RfmService {
     };
   }
 
-  private calculateClientMetrics(transactions: Transaction[], referenceDate: Date) {
-    const clientMap = new Map<number, any>();
-
-    for (const transaction of transactions) {
-      const clientId = transaction.clientId;
-
-      if (!clientMap.has(clientId)) {
-        clientMap.set(clientId, {
-          clientId,
-          recency: Infinity,
-          frequency: 0,
-          monetary: 0,
-          lastTransactionDate: null,
-        });
-      }
-
-      const metric = clientMap.get(clientId);
-      metric.frequency++;
-      metric.monetary += parseFloat(transaction.amount.toString());
-
-      const transactionDate = new Date(transaction.transactionDate);
-      if (!metric.lastTransactionDate || transactionDate > metric.lastTransactionDate) {
-        metric.lastTransactionDate = transactionDate;
-      }
+  private parseDateOnly(value: string, label: string): Date {
+    const date = parseUtcCalendarDate(value);
+    if (!date) {
+      throw new BadRequestException(`${label} должна быть существующей датой в формате ГГГГ-ММ-ДД`);
     }
-
-    const referenceDay = Date.UTC(
-      referenceDate.getUTCFullYear(),
-      referenceDate.getUTCMonth(),
-      referenceDate.getUTCDate(),
-    );
-    const metrics = Array.from(clientMap.values()).map(metric => {
-      const lastTransactionDate = metric.lastTransactionDate as Date | null;
-      const lastTransactionDay = lastTransactionDate
-        ? Date.UTC(
-            lastTransactionDate.getUTCFullYear(),
-            lastTransactionDate.getUTCMonth(),
-            lastTransactionDate.getUTCDate(),
-          )
-        : referenceDay;
-      const recency = Math.max(
-        0,
-        Math.floor((referenceDay - lastTransactionDay) / (1000 * 60 * 60 * 24)),
-      );
-
-      return {
-        clientId: metric.clientId,
-        recency,
-        frequency: metric.frequency,
-        monetary: metric.monetary,
-      };
-    });
-
-    return metrics;
+    return date;
   }
 
-  private calculateScores(values: number[], count: number, lowerIsBetter: boolean): number[] {
-    if (values.length === 0) return [];
-
-    const sorted = [...values].sort((a, b) => a - b);
-    const scoresByValue = new Map<number, number>();
-    let groupStart = 0;
-
-    while (groupStart < sorted.length) {
-      let groupEnd = groupStart;
-      while (groupEnd + 1 < sorted.length && sorted[groupEnd + 1] === sorted[groupStart]) {
-        groupEnd += 1;
-      }
-
-      // Use the midpoint rank for ties. A single-valued sample receives the
-      // neutral middle score instead of an arbitrary best/worst score.
-      const percentile = sorted.length === 1
-        ? 0.5
-        : ((groupStart + groupEnd) / 2) / (sorted.length - 1);
-      const orientedPercentile = lowerIsBetter ? 1 - percentile : percentile;
-      const score = Math.min(count, Math.floor(orientedPercentile * count) + 1);
-      scoresByValue.set(sorted[groupStart], score);
-      groupStart = groupEnd + 1;
-    }
-
-    return values.map(value => scoresByValue.get(value)!);
-  }
-
-  private async createOrUpdateSegments(quartilesCount: number): Promise<Segment[]> {
+  private async createOrUpdateSegments(patterns: string[]): Promise<Segment[]> {
     const segments = [];
-    const totalCombinations = Math.pow(quartilesCount, 3);
-
-    for (let r = 1; r <= quartilesCount; r++) {
-      for (let f = 1; f <= quartilesCount; f++) {
-        for (let m = 1; m <= quartilesCount; m++) {
-          const rfmPattern = `${r}${f}${m}`;
-          const segmentName = this.getSegmentName(r, f, m, quartilesCount);
-
-          let segment = await this.segmentRepository.findOne({
-            where: { rfmPattern },
-          });
-
-          if (!segment) {
-            // Check if segment with same name exists (from seed data)
-            const existingByName = await this.segmentRepository.findOne({
-              where: { segmentName },
-            });
-            
-            if (existingByName) {
-              // Update existing segment with new pattern
-              existingByName.rfmPattern = rfmPattern;
-              existingByName.description = this.getSegmentDescription(r, f, m, quartilesCount);
-              segment = await this.segmentRepository.save(existingByName);
-            } else {
-              // Create new segment
-              segment = this.segmentRepository.create({
-                segmentName,
-                rfmPattern,
-                description: this.getSegmentDescription(r, f, m, quartilesCount),
-              });
-              segment = await this.segmentRepository.save(segment);
-            }
-          }
-
-          segments.push(segment);
-        }
+    for (const rfmPattern of patterns) {
+      let segment = await this.segmentRepository.findOne({ where: { rfmPattern } });
+      if (!segment) {
+        segment = this.segmentRepository.create({
+          segmentName: `RFM pattern (${rfmPattern})`,
+          rfmPattern,
+          description: 'Уровни сегмента определяются числом квантилей конкретного анализа.',
+        });
+        segment = await this.segmentRepository.save(segment);
       }
+      segments.push(segment);
     }
 
     return segments;
   }
 
-  private getSegmentName(r: number, f: number, m: number, max: number): string {
-    const rScore = r >= max - 1 ? 'Высокая' : r <= 2 ? 'Низкая' : 'Средняя';
-    const fScore = f >= max - 1 ? 'Высокая' : f <= 2 ? 'Низкая' : 'Средняя';
-    const mScore = m >= max - 1 ? 'Высокая' : m <= 2 ? 'Низкая' : 'Средняя';
-
-    return `R${rScore}-F${fScore}-M${mScore} (${r}${f}${m})`;
-  }
-
   private getSegmentDescription(r: number, f: number, m: number, max: number): string {
-    if (r >= max - 1 && f >= max - 1 && m >= max - 1) {
+    const rLevel = getScoreLevel(r, max);
+    const fLevel = getScoreLevel(f, max);
+    const mLevel = getScoreLevel(m, max);
+    if (rLevel === 'high' && fLevel === 'high' && mLevel === 'high') {
       return 'Лояльные клиенты - покупают часто, много и недавно';
     }
-    if (r <= 2 && f >= max - 1 && m >= max - 1) {
+    if (rLevel === 'low' && fLevel === 'high' && mLevel === 'high') {
       return 'Клиенты в зоне риска - покупали часто и много, но давно';
     }
-    if (r >= max - 1 && f <= 2 && m >= max - 1) {
+    if (rLevel === 'high' && fLevel === 'low' && mLevel === 'high') {
       return 'Новые ценные клиенты - недавно начали покупать, но много';
     }
-    if (r <= 2 && f <= 2 && m <= 2) {
+    if (rLevel === 'low' && fLevel === 'low' && mLevel === 'low') {
       return 'Потерянные клиенты - покупали редко, мало и давно';
     }
     return 'Обычный сегмент';
@@ -321,9 +240,23 @@ export class RfmService {
     });
 
     return {
+      analysisConfig: this.toPublicConfig(config),
       rfmScores: scores,
-      segments: await this.buildSegmentSummaries(scores),
+      segments: await this.buildSegmentSummaries(scores, config.quartilesCount),
       interpretation: config.aiInterpretation,
+    };
+  }
+
+  private toPublicConfig(config: AnalysisConfig) {
+    return {
+      id: config.id,
+      configName: config.configName,
+      periodStart: config.periodStart,
+      periodEnd: config.periodEnd,
+      referenceDate: config.referenceDate,
+      analysisPeriod: config.analysisPeriod,
+      quartilesCount: config.quartilesCount,
+      scoringMethodVersion: config.scoringMethodVersion,
     };
   }
 
@@ -341,10 +274,10 @@ export class RfmService {
       where: { analysisConfigId: latestConfig.id },
     });
 
-    return this.buildSegmentSummaries(scores);
+    return this.buildSegmentSummaries(scores, latestConfig.quartilesCount);
   }
 
-  private async buildSegmentSummaries(scores: RfmScore[]) {
+  private async buildSegmentSummaries(scores: RfmScore[], quartilesCount: number) {
     if (scores.length === 0) {
       return [];
     }
@@ -360,9 +293,22 @@ export class RfmService {
         (sum, score) => sum + Number(score.monetaryValue),
         0,
       );
+      const representative = segmentScores[0];
 
       return {
         ...segment,
+        segmentName: getSegmentName(
+          representative.rScore,
+          representative.fScore,
+          representative.mScore,
+          quartilesCount,
+        ),
+        description: this.getSegmentDescription(
+          representative.rScore,
+          representative.fScore,
+          representative.mScore,
+          quartilesCount,
+        ),
         clientCount: segmentScores.length,
         avgMonetary: totalMonetary / segmentScores.length,
       };

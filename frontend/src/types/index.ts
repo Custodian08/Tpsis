@@ -87,6 +87,16 @@ export interface AnalysisInterpretation {
 
 export interface AnalysisResult {
   analysisConfigId: number;
+  analysisConfig: {
+    id: number;
+    configName: string;
+    periodStart: string | null;
+    periodEnd: string | null;
+    referenceDate: string | null;
+    analysisPeriod: number;
+    quartilesCount: number;
+    scoringMethodVersion: string;
+  };
   clientsAnalyzed: number;
   rfmScores: RfmScore[];
   segments: Segment[];

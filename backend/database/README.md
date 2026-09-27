@@ -1,5 +1,7 @@
 # Инструкция по инициализации базы данных
 
+Для существующей базы применяйте SQL из `migrations` в числовом порядке. Для текущей схемы выполните `001_add_ai_interpretation.sql`, затем `002_store_rfm_calculation_rules.sql` в Query Tool базы `rfm_analysis`. Вторая миграция добавляет даты периода, дату отсчёта Recency и версию алгоритма; исторические запуски остаются доступными, но новые даты для них будут `NULL`.
+
 ## Создание базы данных
 
 1. Откройте pgAdmin или командную строку PostgreSQL
@@ -31,6 +33,14 @@ psql -U postgres -d rfm_analysis -f init.sql
 ```bash
 psql -U postgres -d rfm_analysis -f migrations/001_add_ai_interpretation.sql
 ```
+
+Затем примените миграцию параметров расчёта:
+
+```bash
+psql -U postgres -d rfm_analysis -f migrations/002_store_rfm_calculation_rules.sql
+```
+
+Если команда `psql` не найдена, откройте SQL-файл в pgAdmin Query Tool и выполните его там.
 
 ## Добавление тестовых данных
 

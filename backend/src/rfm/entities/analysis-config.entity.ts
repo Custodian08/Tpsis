@@ -15,8 +15,20 @@ export class AnalysisConfig {
   @Column({ name: 'analysis_period' })
   analysisPeriod: number;
 
+  @Column({ name: 'period_start', type: 'date', nullable: true })
+  periodStart: string | null;
+
+  @Column({ name: 'period_end', type: 'date', nullable: true })
+  periodEnd: string | null;
+
+  @Column({ name: 'reference_date', type: 'date', nullable: true })
+  referenceDate: string | null;
+
   @Column({ name: 'quartiles_count', default: 5 })
   quartilesCount: number;
+
+  @Column({ name: 'scoring_method_version', default: 'midpoint-rank-v1' })
+  scoringMethodVersion: string;
 
   @Column({ name: 'r_weights', type: 'json', nullable: true })
   rWeights: number[];

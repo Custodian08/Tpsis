@@ -41,6 +41,14 @@ function formatClientCount(count) {
   return `${count} ${noun}`;
 }
 
+function getScoreLevel(score, quartilesCount) {
+  const lowThreshold = Math.floor(quartilesCount / 3);
+  const highThreshold = Math.floor((2 * quartilesCount) / 3) + 1;
+  if (score <= lowThreshold) return 'low';
+  if (score >= highThreshold) return 'high';
+  return 'medium';
+}
+
 function validateRequest(data) {
   if (!data || !Number.isInteger(data.totalClients) || data.totalClients < 0) {
     return 'Поле totalClients должно быть целым неотрицательным числом.';
@@ -96,14 +104,15 @@ function interpret(data) {
   const leadingValue = rankedByValue[0];
   const riskSegments = nonEmptySegments.filter(segment => {
     const [r, f, m] = decodePattern(segment.rfmPattern, data.quartilesCount);
-    const strongThreshold = Math.max(2, data.quartilesCount - 1);
-    const lowRecencyThreshold = Math.floor(data.quartilesCount / 2);
-    return r <= lowRecencyThreshold && f >= strongThreshold && m >= strongThreshold;
+    return getScoreLevel(r, data.quartilesCount) === 'low' &&
+      getScoreLevel(f, data.quartilesCount) === 'high' &&
+      getScoreLevel(m, data.quartilesCount) === 'high';
   });
   const loyalSegments = nonEmptySegments.filter(segment => {
     const [r, f, m] = decodePattern(segment.rfmPattern, data.quartilesCount);
-    const strongThreshold = Math.max(2, data.quartilesCount - 1);
-    return r >= strongThreshold && f >= strongThreshold && m >= strongThreshold;
+    return getScoreLevel(r, data.quartilesCount) === 'high' &&
+      getScoreLevel(f, data.quartilesCount) === 'high' &&
+      getScoreLevel(m, data.quartilesCount) === 'high';
   });
 
   const insights = [];
@@ -198,4 +207,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { decodePattern, validateRequest, interpret };
+module.exports = { decodePattern, getScoreLevel, validateRequest, interpret };

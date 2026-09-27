@@ -151,6 +151,12 @@ export default function RfmAnalysisPage() {
           <Alert severity="success" sx={{ mb: 2 }}>
             Анализ завершен успешно! Проанализировано клиентов: {result.clientsAnalyzed}
           </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Период: {result.analysisConfig.periodStart} — {result.analysisConfig.periodEnd} ·{' '}
+            дней: {result.analysisConfig.analysisPeriod} · квантилей: {result.analysisConfig.quartilesCount} ·{' '}
+            дата отсчёта Recency: {result.analysisConfig.referenceDate} ·{' '}
+            метод: {result.analysisConfig.scoringMethodVersion}
+          </Typography>
 
           {result.interpretation && (
             <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -217,7 +223,7 @@ export default function RfmAnalysisPage() {
           <strong>Recency (R)</strong> - Давность последней покупки. Чем меньше дней прошло с последней покупки, тем выше оценка.
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          <strong>Frequency (F)</strong> - Частота покупок. Чем больше покупок совершил клиент, тем выше оценка.
+          <strong>Frequency (F)</strong> - Число транзакций клиента в выбранном периоде. Чем больше транзакций, тем выше оценка.
         </Typography>
         <Typography variant="body2" color="text.secondary">
           <strong>Monetary (M)</strong> - Денежная ценность. Чем больше денег потратил клиент, тем выше оценка.
