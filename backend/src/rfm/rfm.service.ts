@@ -55,18 +55,22 @@ export class RfmService {
     // Calculate RFM metrics for each client
     const clientMetrics = this.calculateClientMetrics(transactions, end);
 
-    // Calculate quantiles
-    const recencyQuantiles = this.calculateQuantiles(
-      clientMetrics.map(m => m.recency),
+    // Rank tied values as one group so duplicate metric values do not get
+    // split across different RFM scores or collapse into an extreme score.
+    const recencyScores = this.calculateScores(
+      clientMetrics.map(metric => metric.recency),
       quartilesCount,
+      true,
     );
-    const frequencyQuantiles = this.calculateQuantiles(
-      clientMetrics.map(m => m.frequency),
+    const frequencyScores = this.calculateScores(
+      clientMetrics.map(metric => metric.frequency),
       quartilesCount,
+      false,
     );
-    const monetaryQuantiles = this.calculateQuantiles(
-      clientMetrics.map(m => m.monetary),
+    const monetaryScores = this.calculateScores(
+      clientMetrics.map(metric => metric.monetary),
       quartilesCount,
+      false,
     );
 
     // Create analysis config
@@ -83,14 +87,12 @@ export class RfmService {
 
     // Calculate RFM scores and save results
     const rfmScores = [];
-    for (const metric of clientMetrics) {
-      const rScore = this.calculateScore(metric.recency, recencyQuantiles, true); // Lower is better
-      const fScore = this.calculateScore(metric.frequency, frequencyQuantiles, false); // Higher is better
-      const mScore = this.calculateScore(metric.monetary, monetaryQuantiles, false); // Higher is better
+    for (const [index, metric] of clientMetrics.entries()) {
+      const rScore = recencyScores[index];
+      const fScore = frequencyScores[index];
+      const mScore = monetaryScores[index];
 
       const rfmSegment = `${rScore}${fScore}${mScore}`;
-
-      console.log(`Client ${metric.clientId}: R=${rScore}, F=${fScore}, M=${mScore}, Pattern=${rfmSegment}`);
 
       const rfmScore = this.rfmScoreRepository.create({
         clientId: metric.clientId,
@@ -109,8 +111,6 @@ export class RfmService {
       
       // Add to corresponding segment
       const segment = segments.find(s => s.rfmPattern === rfmSegment);
-      console.log(`Looking for segment with pattern ${rfmSegment}, found:`, segment ? segment.segmentName : 'NOT FOUND');
-      
       if (segment) {
         // Direct insert into junction table
         await this.rfmScoreRepository
@@ -118,7 +118,6 @@ export class RfmService {
           .relation(RfmScore, "segments")
           .of(savedScore)
           .add(segment);
-        console.log(`Added score ${savedScore.id} to segment ${segment.segmentName}`);
       }
 
       rfmScores.push(savedScore);
@@ -212,34 +211,31 @@ export class RfmService {
     return metrics;
   }
 
-  private calculateQuantiles(values: number[], count: number): number[] {
+  private calculateScores(values: number[], count: number, lowerIsBetter: boolean): number[] {
+    if (values.length === 0) return [];
+
     const sorted = [...values].sort((a, b) => a - b);
-    const quantiles = [];
+    const scoresByValue = new Map<number, number>();
+    let groupStart = 0;
 
-    for (let i = 1; i <= count; i++) {
-      const index = Math.floor((sorted.length * i) / count) - 1;
-      quantiles.push(sorted[Math.max(0, index)]);
+    while (groupStart < sorted.length) {
+      let groupEnd = groupStart;
+      while (groupEnd + 1 < sorted.length && sorted[groupEnd + 1] === sorted[groupStart]) {
+        groupEnd += 1;
+      }
+
+      // Use the midpoint rank for ties. A single-valued sample receives the
+      // neutral middle score instead of an arbitrary best/worst score.
+      const percentile = sorted.length === 1
+        ? 0.5
+        : ((groupStart + groupEnd) / 2) / (sorted.length - 1);
+      const orientedPercentile = lowerIsBetter ? 1 - percentile : percentile;
+      const score = Math.min(count, Math.floor(orientedPercentile * count) + 1);
+      scoresByValue.set(sorted[groupStart], score);
+      groupStart = groupEnd + 1;
     }
 
-    return quantiles;
-  }
-
-  private calculateScore(value: number, quantiles: number[], lowerIsBetter: boolean): number {
-    if (lowerIsBetter) {
-      for (let i = 0; i < quantiles.length; i++) {
-        if (value <= quantiles[i]) {
-          return quantiles.length - i;
-        }
-      }
-      return 1;
-    } else {
-      for (let i = 0; i < quantiles.length; i++) {
-        if (value <= quantiles[i]) {
-          return i + 1;
-        }
-      }
-      return quantiles.length;
-    }
+    return values.map(value => scoresByValue.get(value)!);
   }
 
   private async createOrUpdateSegments(quartilesCount: number): Promise<Segment[]> {
