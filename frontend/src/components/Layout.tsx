@@ -27,6 +27,7 @@ import {
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   TrendingUp as TrendingUpIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -37,6 +38,7 @@ const menuItems = [
   { text: 'Дашборд', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Импорт данных', icon: <UploadIcon />, path: '/import' },
   { text: 'RFM-анализ', icon: <AnalyticsIcon />, path: '/rfm-analysis' },
+  { text: 'История анализов', icon: <HistoryIcon />, path: '/analysis-history' },
   { text: 'Визуализация', icon: <BarChartIcon />, path: '/visualization' },
   { text: 'Сегменты', icon: <CategoryIcon />, path: '/segments' },
   { text: 'Экспорт', icon: <DownloadIcon />, path: '/export' },
@@ -48,6 +50,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const isMenuItemSelected = (path: string) =>
+    location.pathname === path || (path === '/analysis-history' && location.pathname.startsWith('/analyses/'));
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -87,7 +91,7 @@ export default function Layout() {
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
             <ListItemButton
-              selected={location.pathname === item.path}
+              selected={isMenuItemSelected(item.path)}
               onClick={() => {
                 navigate(item.path);
                 setMobileOpen(false);
@@ -111,7 +115,7 @@ export default function Layout() {
             >
               <ListItemIcon
                 sx={{
-                  color: location.pathname === item.path ? 'white' : 'primary.main',
+                  color: isMenuItemSelected(item.path) ? 'white' : 'primary.main',
                 }}
               >
                 {item.icon}
@@ -119,8 +123,8 @@ export default function Layout() {
               <ListItemText
                 primary={item.text}
                 sx={{
-                  fontWeight: location.pathname === item.path ? 600 : 400,
-                  color: location.pathname === item.path ? 'white' : 'text.primary',
+                  fontWeight: isMenuItemSelected(item.path) ? 600 : 400,
+                  color: isMenuItemSelected(item.path) ? 'white' : 'text.primary',
                 }}
               />
             </ListItemButton>

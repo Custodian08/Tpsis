@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -15,6 +16,7 @@ import { rfmService } from '../services/rfm.service';
 import { AnalysisResult } from '../types';
 
 export default function RfmAnalysisPage() {
+  const navigate = useNavigate();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [quartilesCount, setQuartilesCount] = useState(5);
@@ -37,6 +39,7 @@ export default function RfmAnalysisPage() {
         quartilesCount,
       });
       setResult(data);
+      navigate(`/analyses/${data.analysisConfigId}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка при выполнении анализа');
     } finally {

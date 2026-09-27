@@ -10,6 +10,8 @@ import RfmAnalysisPage from './pages/RfmAnalysisPage';
 import VisualizationPage from './pages/VisualizationPage';
 import SegmentsPage from './pages/SegmentsPage';
 import ExportPage from './pages/ExportPage';
+import AnalysisHistoryPage from './pages/AnalysisHistoryPage';
+import AnalysisResultPage from './pages/AnalysisResultPage';
 import { useAuthStore } from './store/authStore';
 
 const theme = createTheme({
@@ -133,6 +135,8 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="import" element={<ImportPage />} />
             <Route path="rfm-analysis" element={<RfmAnalysisPage />} />
+            <Route path="analysis-history" element={<AnalysisHistoryPage />} />
+            <Route path="analyses/:configId" element={<AnalysisResultPage />} />
             <Route path="visualization" element={<VisualizationPage />} />
             <Route path="segments" element={<SegmentsPage />} />
             <Route path="export" element={<ExportPage />} />

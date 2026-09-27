@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, ManyToMany, JoinTable } from 'typeorm';
 import { AnalysisConfig } from './analysis-config.entity';
 import { Segment } from './segment.entity';
+import { Client } from '../../data/entities/client.entity';
 
 @Entity('rfm_scores')
 export class RfmScore {
@@ -9,6 +10,10 @@ export class RfmScore {
 
   @Column({ name: 'client_id' })
   clientId: number;
+
+  @ManyToOne(() => Client)
+  @JoinColumn({ name: 'client_id' })
+  client: Client;
 
   @Column({ name: 'analysis_config_id' })
   analysisConfigId: number;

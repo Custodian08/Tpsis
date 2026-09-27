@@ -1,11 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In, DataSource } from 'typeorm';
+import { Repository, Between, In, DataSource, SelectQueryBuilder } from 'typeorm';
 import { RfmScore } from './entities/rfm-score.entity';
 import { Segment } from './entities/segment.entity';
 import { AnalysisConfig } from './entities/analysis-config.entity';
 import { Transaction } from '../data/entities/transaction.entity';
 import { IntelligenceService } from './intelligence.service';
+import { AnalysisClientFilterDto, AnalysisHistoryQueryDto } from './dto/analysis-history-query.dto';
 import {
   calculateClientMetrics,
   calculateRankScores,
@@ -188,6 +189,283 @@ export class RfmService {
     return date;
   }
 
+  async getAnalysisHistory(query: AnalysisHistoryQueryDto, userId: number) {
+    const periodStart = query.periodStart
+      ? this.parseDateOnly(query.periodStart, 'Дата начала фильтра')
+      : undefined;
+    const periodEnd = query.periodEnd
+      ? this.parseDateOnly(query.periodEnd, 'Дата окончания фильтра')
+      : undefined;
+    if (periodStart && periodEnd && periodStart > periodEnd) {
+      throw new BadRequestException('Дата начала фильтра должна быть раньше даты окончания');
+    }
+
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 20;
+    const historyQuery = this.analysisConfigRepository
+      .createQueryBuilder('config')
+      .where('config.userId = :userId', { userId });
+    if (periodStart) {
+      historyQuery.andWhere('config.periodEnd >= :periodStart', {
+        periodStart: query.periodStart,
+      });
+    }
+    if (periodEnd) {
+      historyQuery.andWhere('config.periodStart <= :periodEnd', {
+        periodEnd: query.periodEnd,
+      });
+    }
+
+    const [configs, total] = await historyQuery
+      .orderBy('config.createdAt', 'DESC')
+      .addOrderBy('config.id', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getManyAndCount();
+
+    const scoresByConfig = new Map<number, number>();
+    if (configs.length) {
+      const counts = await this.rfmScoreRepository
+        .createQueryBuilder('score')
+        .select('score.analysisConfigId', 'configId')
+        .addSelect('COUNT(score.id)', 'clientCount')
+        .where('score.analysisConfigId IN (:...ids)', { ids: configs.map(config => config.id) })
+        .groupBy('score.analysisConfigId')
+        .getRawMany();
+      counts.forEach(row => scoresByConfig.set(Number(row.configId), Number(row.clientCount)));
+    }
+
+    return {
+      items: configs.map(config => {
+        const clientsAnalyzed = scoresByConfig.get(config.id) || 0;
+        return {
+          ...this.toPublicConfig(config),
+          clientsAnalyzed,
+          status: clientsAnalyzed > 0 ? 'completed' : 'incomplete',
+        };
+      }),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async getAnalysisClients(
+    analysisConfigId: number,
+    userId: number,
+    filters: AnalysisClientFilterDto,
+  ) {
+    const config = await this.analysisConfigRepository.findOne({
+      where: { id: analysisConfigId, userId },
+    });
+    if (!config) throw new NotFoundException('Анализ не найден');
+
+    this.validateClientFilters(filters, config.quartilesCount);
+    const filteredQuery = this.buildFilteredScoresQuery(analysisConfigId, filters);
+    const page = filters.page || 1;
+    const pageSize = filters.pageSize || 25;
+    const totalClients = await filteredQuery.clone().getCount();
+    const totalMonetaryRow = await filteredQuery
+      .clone()
+      .select('COALESCE(SUM(score.monetaryValue), 0)', 'totalMonetary')
+      .getRawOne();
+    const totalMonetary = Number(totalMonetaryRow?.totalMonetary || 0);
+
+    const rawSegments = await filteredQuery
+      .clone()
+      .select('score.rfmSegment', 'rfmPattern')
+      .addSelect('score.rScore', 'rScore')
+      .addSelect('score.fScore', 'fScore')
+      .addSelect('score.mScore', 'mScore')
+      .addSelect('COUNT(score.id)', 'clientCount')
+      .addSelect('SUM(score.monetaryValue)', 'monetaryTotal')
+      .addSelect('AVG(score.monetaryValue)', 'avgMonetary')
+      .groupBy('score.rfmSegment')
+      .addGroupBy('score.rScore')
+      .addGroupBy('score.fScore')
+      .addGroupBy('score.mScore')
+      .getRawMany();
+
+    const segments = rawSegments
+      .map(row => {
+        const clientCount = Number(row.clientCount);
+        const monetaryTotal = Number(row.monetaryTotal);
+        return {
+          rfmPattern: row.rfmPattern,
+          segmentName: getSegmentName(
+            Number(row.rScore),
+            Number(row.fScore),
+            Number(row.mScore),
+            config.quartilesCount,
+          ),
+          clientCount,
+          clientShare: totalClients ? Number(((clientCount / totalClients) * 100).toFixed(1)) : 0,
+          monetaryTotal,
+          monetaryShare: totalMonetary > 0
+            ? Number(((monetaryTotal / totalMonetary) * 100).toFixed(1))
+            : null,
+          avgMonetary: Number(row.avgMonetary),
+        };
+      })
+      .sort((a, b) => b.clientCount - a.clientCount);
+
+    const scores = await filteredQuery
+      .clone()
+      .orderBy('client.fullName', 'ASC', 'NULLS LAST')
+      .addOrderBy('client.clientExternalId', 'ASC')
+      .addOrderBy('score.id', 'ASC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
+      .getMany();
+
+    return {
+      analysisConfig: this.toPublicConfig(config),
+      filters: this.toPublicFilters(filters),
+      totalClients,
+      totalMonetary,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalClients / pageSize),
+      segments,
+      scores: scores.map(score => ({
+        id: score.id,
+        clientId: score.clientId,
+        clientExternalId: score.client?.clientExternalId || '',
+        fullName: score.client?.fullName || '',
+        recencyDays: score.recencyDays,
+        frequencyCount: score.frequencyCount,
+        monetaryValue: Number(score.monetaryValue),
+        rScore: score.rScore,
+        fScore: score.fScore,
+        mScore: score.mScore,
+        rfmSegment: score.rfmSegment,
+      })),
+    };
+  }
+
+  async getAnalysisClient(analysisConfigId: number, clientId: number, userId: number) {
+    const config = await this.analysisConfigRepository.findOne({
+      where: { id: analysisConfigId, userId },
+    });
+    if (!config) throw new NotFoundException('Анализ не найден');
+
+    const score = await this.rfmScoreRepository.findOne({
+      where: { analysisConfigId, clientId },
+      relations: ['client'],
+    });
+    if (!score) throw new NotFoundException('Клиент не найден в выбранном анализе');
+
+    let transactions: Transaction[] = [];
+    let transactionsTotal = 0;
+    if (config.periodStart && config.periodEnd) {
+      const where = {
+        clientId,
+        transactionDate: Between(
+          this.parseDateOnly(config.periodStart, 'Дата начала анализа'),
+          this.parseDateOnly(config.periodEnd, 'Дата окончания анализа'),
+        ),
+      };
+      transactionsTotal = await this.transactionRepository.count({ where });
+      transactions = await this.transactionRepository.find({
+        where,
+        order: { transactionDate: 'DESC', id: 'DESC' },
+        take: 100,
+      });
+    }
+
+    return {
+      analysisConfig: this.toPublicConfig(config),
+      client: {
+        id: score.client.id,
+        clientExternalId: score.client.clientExternalId,
+        fullName: score.client.fullName,
+        email: score.client.email,
+        phone: score.client.phone,
+        clientType: score.client.clientType,
+      },
+      rfm: {
+        recencyDays: score.recencyDays,
+        frequencyCount: score.frequencyCount,
+        monetaryValue: Number(score.monetaryValue),
+        rScore: score.rScore,
+        fScore: score.fScore,
+        mScore: score.mScore,
+        rfmPattern: score.rfmSegment,
+        segmentName: getSegmentName(score.rScore, score.fScore, score.mScore, config.quartilesCount),
+      },
+      transactions: transactions.map(transaction => ({
+        id: transaction.id,
+        transactionDate: transaction.transactionDate,
+        amount: Number(transaction.amount),
+        itemsCount: transaction.itemsCount,
+        paymentMethod: transaction.paymentMethod,
+      })),
+      transactionsTotal,
+      transactionsTruncated: transactionsTotal > transactions.length,
+    };
+  }
+
+  private buildFilteredScoresQuery(
+    analysisConfigId: number,
+    filters: AnalysisClientFilterDto,
+  ): SelectQueryBuilder<RfmScore> {
+    const query = this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId });
+
+    if (filters.segmentPattern) {
+      query.andWhere('score.rfmSegment = :segmentPattern', { segmentPattern: filters.segmentPattern });
+    }
+    for (const [key, column] of [
+      ['minR', 'score.rScore'], ['maxR', 'score.rScore'],
+      ['minF', 'score.fScore'], ['maxF', 'score.fScore'],
+      ['minM', 'score.mScore'], ['maxM', 'score.mScore'],
+    ] as const) {
+      const value = filters[key];
+      if (value !== undefined) {
+        const operator = key.startsWith('min') ? '>=' : '<=';
+        query.andWhere(`${column} ${operator} :${key}`, { [key]: value });
+      }
+    }
+    const search = filters.search?.trim();
+    if (search) {
+      query.andWhere(
+        '(client.fullName ILIKE :search OR client.clientExternalId ILIKE :search OR client.email ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+    return query;
+  }
+
+  private validateClientFilters(filters: AnalysisClientFilterDto, quartilesCount: number) {
+    for (const dimension of ['R', 'F', 'M'] as const) {
+      const minimum = filters[`min${dimension}`];
+      const maximum = filters[`max${dimension}`];
+      if ((minimum !== undefined && minimum > quartilesCount) ||
+        (maximum !== undefined && maximum > quartilesCount)) {
+        throw new BadRequestException(`Оценка ${dimension} не может превышать ${quartilesCount}`);
+      }
+      if (minimum !== undefined && maximum !== undefined && minimum > maximum) {
+        throw new BadRequestException(`Минимальная оценка ${dimension} больше максимальной`);
+      }
+    }
+  }
+
+  private toPublicFilters(filters: AnalysisClientFilterDto) {
+    return {
+      search: filters.search || '',
+      segmentPattern: filters.segmentPattern || '',
+      minR: filters.minR ?? null,
+      maxR: filters.maxR ?? null,
+      minF: filters.minF ?? null,
+      maxF: filters.maxF ?? null,
+      minM: filters.minM ?? null,
+      maxM: filters.maxM ?? null,
+    };
+  }
+
   private async createOrUpdateSegments(patterns: string[]): Promise<Segment[]> {
     const segments = [];
     for (const rfmPattern of patterns) {
@@ -251,6 +529,7 @@ export class RfmService {
     return {
       id: config.id,
       configName: config.configName,
+      createdAt: config.createdAt,
       periodStart: config.periodStart,
       periodEnd: config.periodEnd,
       referenceDate: config.referenceDate,

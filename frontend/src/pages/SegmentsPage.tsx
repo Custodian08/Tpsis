@@ -35,32 +35,6 @@ export default function SegmentsPage() {
     }
   };
 
-  const getSegmentRecommendation = (rfmPattern: string): string => {
-    const r = parseInt(rfmPattern[0]);
-    const f = parseInt(rfmPattern[1]);
-    const m = parseInt(rfmPattern[2]);
-
-    if (r >= 4 && f >= 4 && m >= 4) {
-      return 'Лояльные клиенты - предложить премиум-продукты, программу лояльности';
-    }
-    if (r <= 2 && f >= 4 && m >= 4) {
-      return 'В зоне риска - срочно вернуть, предложить скидки, персональные предложения';
-    }
-    if (r >= 4 && f <= 2 && m >= 4) {
-      return 'Новые ценные - вовлечь в программу лояльности, рекомендовать сопутствующие товары';
-    }
-    if (r <= 2 && f <= 2 && m <= 2) {
-      return 'Потерянные - рассылка с промо-акциями для возобновления активности';
-    }
-    if (r >= 4 && f >= 4 && m <= 2) {
-      return 'Частые, но мало тратят - предложить более дорогие товары, кросс-селл';
-    }
-    if (r <= 2 && f <= 2 && m >= 4) {
-      return 'Потерянные, но ценные - персональное предложение, скидки';
-    }
-    return 'Стандартная стратегия работы';
-  };
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -106,9 +80,16 @@ export default function SegmentsPage() {
                     <TableCell>{segment.rfmPattern}</TableCell>
                     <TableCell align="right">{segment.clientCount}</TableCell>
                     <TableCell align="right">{segment.avgMonetary.toFixed(2)} руб.</TableCell>
-                    <TableCell>{getSegmentRecommendation(segment.rfmPattern)}</TableCell>
+                    <TableCell>{segment.description || 'Описание пока не сформировано'}</TableCell>
                   </TableRow>
                 ))}
+              {segments.filter(s => s.clientCount > 0).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    {error ? 'Не удалось загрузить сегменты.' : 'Сегменты появятся после первого анализа с клиентами.'}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </TableContainer>
