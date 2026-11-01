@@ -18,7 +18,7 @@ export class DataController {
   @RateLimit(20, 60 * 60 * 1000)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0, parts: 1 },
+      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0 },
     }),
   )
   async importCSV(@UploadedFile() file: Express.Multer.File) {
@@ -33,7 +33,7 @@ export class DataController {
   @RateLimit(20, 60 * 60 * 1000)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0, parts: 1 },
+      limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1, fields: 0 },
     }),
   )
   async importExcel(@UploadedFile() file: Express.Multer.File) {
