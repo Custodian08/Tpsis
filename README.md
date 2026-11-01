@@ -223,7 +223,7 @@ npm run dev
 
 ## API документация
 
-После запуска backend сервера, API доступно по адресу: http://localhost:3000/api. Полные контракты запросов, ограничений, ответов и обработки ошибок приведены в [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md).
+После запуска backend сервера, API доступно по адресу: http://localhost:3000/api. Полные контракты запросов, ограничений, ответов и обработки ошибок приведены в [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md). Схемы компонентов и сценариев приведены в [docs/ARCHITECTURE_AND_INTERACTION.md](docs/ARCHITECTURE_AND_INTERACTION.md).
 
 ### Основные эндпоинты
 
