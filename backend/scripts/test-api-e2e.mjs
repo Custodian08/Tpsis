@@ -195,6 +195,43 @@ async function main() {
   const secondClientPage = await readJson(secondClients);
   check(secondClientPage.total === 1 && secondClientPage.items[0].fullName === 'Second Account Client',
     'same external ID resolves to the second account own client');
+  const secondTransactions = await request(baseUrl, '/api/data/transactions?search=Second%20Account%20Client', { cookie: cookie2 });
+  await expectStatus(secondTransactions, 200, 'second account can search its own transactions');
+  const secondTransactionPage = await readJson(secondTransactions);
+  check(secondTransactionPage.total === 1 && Number(secondTransactionPage.items[0].amount) === 99,
+    'transaction search returns only the second account record');
+  const hiddenFirstTransactions = await request(baseUrl, '/api/data/transactions?search=Synthetic%20Client', { cookie: cookie2 });
+  await expectStatus(hiddenFirstTransactions, 200, 'second account transaction search remains scoped');
+  check((await readJson(hiddenFirstTransactions)).total === 0,
+    'second account cannot find the first account transaction by client name');
+  const secondAnalysisResponse = await request(baseUrl, '/api/rfm/analyze', {
+    method: 'POST',
+    cookie: cookie2,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startDate: '2026-03-03', endDate: '2026-03-03', quartilesCount: 5 }),
+  });
+  await expectStatus(secondAnalysisResponse, 201, 'second account RFM analysis uses its own dataset');
+  const secondAnalysis = await readJson(secondAnalysisResponse);
+  check(secondAnalysis.clientsAnalyzed === 1 && Number(secondAnalysis.rfmScores[0].monetaryValue) === 99,
+    'second account RFM results exclude the first account transactions');
+  const secondAnalysisClientsResponse = await request(
+    baseUrl,
+    `/api/rfm/results/${secondAnalysis.analysisConfigId}/clients?search=qa-c1`,
+    { cookie: cookie2 },
+  );
+  await expectStatus(secondAnalysisClientsResponse, 200, 'second analysis client results are accessible to their owner');
+  const secondAnalysisClients = await readJson(secondAnalysisClientsResponse);
+  check(secondAnalysisClients.totalClients === 1 && secondAnalysisClients.scores[0].fullName === 'Second Account Client',
+    'same external ID in RFM results resolves to the correct owner copy');
+  const secondClientDetailResponse = await request(
+    baseUrl,
+    `/api/rfm/results/${secondAnalysis.analysisConfigId}/clients/${secondClientPage.items[0].id}`,
+    { cookie: cookie2 },
+  );
+  await expectStatus(secondClientDetailResponse, 200, 'second account can open its own client detail');
+  const secondClientDetail = await readJson(secondClientDetailResponse);
+  check(secondClientDetail.client.fullName === 'Second Account Client' && secondClientDetail.transactionsTotal === 1,
+    'client detail and transaction history are scoped to the current account');
   const firstStatsAfterSecondImport = await request(baseUrl, '/api/data/stats', { cookie: cookie1 });
   await expectStatus(firstStatsAfterSecondImport, 200, 'first account statistics remain available');
   const firstStatsData = await readJson(firstStatsAfterSecondImport);
@@ -204,7 +241,9 @@ async function main() {
   await expectStatus(foreignResult, 404, 'another account cannot retrieve the first account analysis');
   const secondHistory = await request(baseUrl, '/api/rfm/analyses', { cookie: cookie2 });
   await expectStatus(secondHistory, 200, 'second account can access its own history');
-  check((await readJson(secondHistory)).items.length === 0, 'analysis history is scoped to its owner');
+  const secondHistoryData = await readJson(secondHistory);
+  check(secondHistoryData.items.length === 1 && secondHistoryData.items[0].id === secondAnalysis.analysisConfigId,
+    'second account history contains only its own RFM run');
 
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.aoa_to_sheet([
