@@ -55,6 +55,20 @@ export interface ImportResult {
   errors: number;
 }
 
+export interface ImportPreview {
+  clientsInFile: number;
+  transactionsInFile: number;
+  dateFrom: string;
+  dateTo: string;
+  sampleRows: Array<{
+    clientExternalId: string;
+    fullName: string;
+    transactionDate: string;
+    amount: number;
+    itemsCount: number;
+  }>;
+}
+
 export interface AnalyzeDto {
   startDate: string;
   endDate: string;

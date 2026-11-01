@@ -30,13 +30,24 @@ interface ImportTransactionData {
 export class DataService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async importFromCSV(file: Express.Multer.File) {
+  async importFromCSV(file: Express.Multer.File, userId: number) {
     this.validateFile(file, ['.csv']);
+    const results = await this.parseCSV(file);
+    return this.processImportData(results, userId);
+  }
+
+  async previewFromCSV(file: Express.Multer.File, userId: number) {
+    this.validateFile(file, ['.csv']);
+    const results = await this.parseCSV(file);
+    return this.processImportData(results, userId, false);
+  }
+
+  private parseCSV(file: Express.Multer.File): Promise<Record<string, unknown>[]> {
     const results: Record<string, unknown>[] = [];
-    const readableStream = new Readable();
-    readableStream.push(file.buffer);
-    readableStream.push(null);
+    const text = this.decodeCsv(file.buffer);
+    const readableStream = Readable.from([text]);
     const parser = csv({
+      separator: this.detectCsvSeparator(text),
       mapHeaders: ({ header }) => header?.replace(/^\uFEFF/, '').trim(),
     });
 
@@ -55,7 +66,7 @@ export class DataService {
         })
         .on('end', () => {
           if (settled) return;
-          this.processImportData(results).then(resolve).catch(reject);
+          resolve(results);
         })
         .on('error', () => {
           if (!settled) {
@@ -65,7 +76,41 @@ export class DataService {
     });
   }
 
-  async importFromExcel(file: Express.Multer.File) {
+  private decodeCsv(buffer: Buffer): string {
+    if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+      return new TextDecoder('utf-16le').decode(buffer.subarray(2));
+    }
+    if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) {
+      return new TextDecoder('utf-16be').decode(buffer.subarray(2));
+    }
+    if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+      return new TextDecoder('utf-8').decode(buffer);
+    }
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    } catch {
+      // Windows Excel commonly exports Cyrillic CSV as Windows-1251 without a BOM.
+      return new TextDecoder('windows-1251').decode(buffer);
+    }
+  }
+
+  private detectCsvSeparator(text: string): string {
+    const firstLine = text.split(/\r?\n/, 1)[0] || '';
+    const counts = new Map([[',', 0], [';', 0], ['\t', 0]]);
+    let quoted = false;
+    for (let index = 0; index < firstLine.length; index += 1) {
+      const character = firstLine[index];
+      if (character === '"') {
+        if (quoted && firstLine[index + 1] === '"') index += 1;
+        else quoted = !quoted;
+      } else if (!quoted && counts.has(character)) {
+        counts.set(character, counts.get(character)! + 1);
+      }
+    }
+    return [...counts.entries()].sort((left, right) => right[1] - left[1])[0][0];
+  }
+
+  async importFromExcel(file: Express.Multer.File, userId: number) {
     this.validateFile(file, ['.xlsx', '.xls']);
     try {
       const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
@@ -82,7 +127,29 @@ export class DataService {
       const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
         defval: '',
       });
-      return await this.processImportData(jsonData);
+      return await this.processImportData(jsonData, userId);
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Не удалось прочитать Excel. Проверьте формат и структуру файла.');
+    }
+  }
+
+  async previewFromExcel(file: Express.Multer.File, userId: number) {
+    this.validateFile(file, ['.xlsx', '.xls']);
+    try {
+      const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        throw new BadRequestException('В книге Excel нет листа с данными');
+      }
+
+      const worksheet = workbook.Sheets[sheetName];
+      const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
+      if (range && range.e.r > MAX_IMPORT_ROWS) {
+        throw new BadRequestException(`Файл превышает лимит в ${MAX_IMPORT_ROWS} строк`);
+      }
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+      return await this.processImportData(jsonData, userId, false);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Не удалось прочитать Excel. Проверьте формат и структуру файла.');
@@ -103,7 +170,11 @@ export class DataService {
     }
   }
 
-  private async processImportData(data: Record<string, unknown>[]) {
+  private async processImportData(
+    data: Record<string, unknown>[],
+    userId: number,
+    persist = true,
+  ) {
     if (data.length === 0) {
       throw new BadRequestException('Файл не содержит строк с данными');
     }
@@ -180,12 +251,31 @@ export class DataService {
       });
     }
 
+    if (!persist) {
+      const dates = transactions.map(row => row.transactionDate.toISOString().slice(0, 10)).sort();
+      return {
+        clientsInFile: clientsByExternalId.size,
+        transactionsInFile: transactions.length,
+        dateFrom: dates[0],
+        dateTo: dates[dates.length - 1],
+        sampleRows: transactions.slice(0, 10).map(row => ({
+          clientExternalId: row.clientExternalId,
+          fullName: clientsByExternalId.get(row.clientExternalId)?.fullName || '',
+          transactionDate: row.transactionDate.toISOString().slice(0, 10),
+          amount: row.amount,
+          itemsCount: row.itemsCount,
+        })),
+      };
+    }
+
     return this.dataSource.transaction(async (manager) => {
       const clientsRepository = manager.getRepository(Client);
       const transactionsRepository = manager.getRepository(Transaction);
       const externalIds = [...clientsByExternalId.keys()];
       const existingClients = externalIds.length
-        ? await clientsRepository.find({ where: { clientExternalId: In(externalIds) } })
+        ? await clientsRepository.find({
+            where: { ownerUserId: userId, clientExternalId: In(externalIds) },
+          })
         : [];
       const clientIdMap = new Map(existingClients.map(client => [client.clientExternalId, client.id]));
       const newClientData = externalIds
@@ -194,7 +284,7 @@ export class DataService {
 
       const savedClients = newClientData.length
         ? await clientsRepository.save(
-            newClientData.map(client => clientsRepository.create(client)),
+          newClientData.map(client => clientsRepository.create({ ...client, ownerUserId: userId })),
             { chunk: 500 },
           )
         : [];
@@ -299,10 +389,11 @@ export class DataService {
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  async getClients(query: { page?: number; pageSize?: number; search?: string }) {
+  async getClients(query: { page?: number; pageSize?: number; search?: string }, userId: number) {
     const page = query.page || 1;
     const pageSize = query.pageSize || 25;
     const qb = this.dataSource.getRepository(Client).createQueryBuilder('client');
+    qb.where('client.ownerUserId = :userId', { userId });
     if (query.search?.trim()) {
       qb.andWhere('(client.fullName ILIKE :search OR client.clientExternalId ILIKE :search OR client.email ILIKE :search)', {
         search: `%${query.search.trim()}%`,
@@ -316,7 +407,7 @@ export class DataService {
     return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getTransactions(query: { page?: number; pageSize?: number; search?: string; clientId?: number; dateFrom?: string; dateTo?: string }) {
+  async getTransactions(query: { page?: number; pageSize?: number; search?: string; clientId?: number; dateFrom?: string; dateTo?: string }, userId: number) {
     if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
       throw new BadRequestException('Начальная дата фильтра должна быть раньше конечной');
     }
@@ -325,6 +416,7 @@ export class DataService {
     const qb = this.dataSource.getRepository(Transaction)
       .createQueryBuilder('transaction')
       .innerJoin('transaction.client', 'client');
+    qb.where('client.ownerUserId = :userId', { userId });
     if (query.clientId) qb.andWhere('transaction.clientId = :clientId', { clientId: query.clientId });
     if (query.dateFrom) qb.andWhere('transaction.transactionDate >= :dateFrom', { dateFrom: query.dateFrom });
     if (query.dateTo) qb.andWhere('transaction.transactionDate <= :dateTo', { dateTo: query.dateTo });
@@ -348,14 +440,20 @@ export class DataService {
     };
   }
 
-  async getClientStats() {
+  async getClientStats(userId: number) {
     const clientsRepository = this.dataSource.getRepository(Client);
     const transactionsRepository = this.dataSource.getRepository(Transaction);
-    const totalClients = await clientsRepository.count();
-    const totalTransactions = await transactionsRepository.count();
+    const totalClients = await clientsRepository.count({ where: { ownerUserId: userId } });
+    const totalTransactions = await transactionsRepository
+      .createQueryBuilder('transaction')
+      .innerJoin('transaction.client', 'client')
+      .where('client.ownerUserId = :userId', { userId })
+      .getCount();
     const totalRevenue = await transactionsRepository
       .createQueryBuilder('transaction')
+      .innerJoin('transaction.client', 'client')
       .select('SUM(transaction.amount)', 'total')
+      .where('client.ownerUserId = :userId', { userId })
       .getRawOne();
 
     return {

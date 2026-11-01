@@ -56,6 +56,33 @@ async function main() {
     const client = await db.query(
       "INSERT INTO clients (client_external_id, full_name) VALUES ('qa-client-1', 'Synthetic Client') RETURNING id",
     );
+    await db.query(await readFile(path.join(databaseDir, 'migrations/004_client_data_ownership.sql'), 'utf8'));
+    console.log('PASS migrations/004_client_data_ownership.sql');
+    const assignedOwner = await db.query('SELECT owner_user_id FROM clients WHERE id = $1', [client.rows[0].id]);
+    if (Number(assignedOwner.rows[0].owner_user_id) !== Number(user.rows[0].id)) {
+      throw new Error('ownership migration did not assign legacy data on a single-user database');
+    }
+    console.log('PASS single-account legacy data receives its owner');
+
+    const secondUser = await db.query(
+      "INSERT INTO users (email, password, full_name) VALUES ('qa2@example.invalid', 'test-hash', 'QA User Two') RETURNING id",
+    );
+    const ambiguousLegacyClient = await db.query(
+      "INSERT INTO clients (client_external_id, full_name) VALUES ('legacy-ambiguous', 'Unassigned Legacy Client') RETURNING id",
+    );
+    await db.query(await readFile(path.join(databaseDir, 'migrations/004_client_data_ownership.sql'), 'utf8'));
+    const unassignedOwner = await db.query(
+      'SELECT owner_user_id FROM clients WHERE id = $1', [ambiguousLegacyClient.rows[0].id],
+    );
+    if (unassignedOwner.rows[0].owner_user_id !== null) {
+      throw new Error('ownership migration should leave ambiguous legacy data unassigned');
+    }
+    console.log('PASS ambiguous multi-account legacy data stays unassigned');
+    await db.query(
+      "INSERT INTO clients (client_external_id, owner_user_id, full_name) VALUES ('qa-client-1', $1, 'Other Synthetic Client')",
+      [secondUser.rows[0].id],
+    );
+    console.log('PASS same external client ID is unique per account');
     const configRow = await db.query(
       `INSERT INTO analysis_configs (user_id, config_name, analysis_period, period_start, period_end, reference_date, quartiles_count)
        VALUES ($1, 'QA analysis', 1, '2026-01-01', '2026-01-01', '2026-01-01', 5) RETURNING id`,

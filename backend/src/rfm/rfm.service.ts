@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In, DataSource, SelectQueryBuilder } from 'typeorm';
+import { Repository, In, DataSource, SelectQueryBuilder } from 'typeorm';
 import { RfmScore } from './entities/rfm-score.entity';
 import { Segment } from './entities/segment.entity';
 import { AnalysisConfig } from './entities/analysis-config.entity';
@@ -50,13 +50,17 @@ export class RfmService {
       throw new BadRequestException('Дата начала должна быть меньше даты окончания');
     }
 
-    const transactions = await this.transactionRepository.find({
-      where: {
-        transactionDate: Between(start, end),
-      },
-      relations: ['client'],
-      take: MAX_ANALYSIS_TRANSACTIONS + 1,
-    });
+    const transactions = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .innerJoinAndSelect('transaction.client', 'client')
+      .where('transaction.transactionDate BETWEEN :startDate AND :endDate', {
+        startDate: startDate,
+        endDate: endDate,
+      })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .orderBy('transaction.id', 'ASC')
+      .take(MAX_ANALYSIS_TRANSACTIONS + 1)
+      .getMany();
 
     if (transactions.length > MAX_ANALYSIS_TRANSACTIONS) {
       throw new BadRequestException(
@@ -227,9 +231,11 @@ export class RfmService {
     if (configs.length) {
       const counts = await this.rfmScoreRepository
         .createQueryBuilder('score')
+        .innerJoin('score.client', 'client')
         .select('score.analysisConfigId', 'configId')
         .addSelect('COUNT(score.id)', 'clientCount')
         .where('score.analysisConfigId IN (:...ids)', { ids: configs.map(config => config.id) })
+        .andWhere('client.ownerUserId = :userId', { userId })
         .groupBy('score.analysisConfigId')
         .getRawMany();
       counts.forEach(row => scoresByConfig.set(Number(row.configId), Number(row.clientCount)));
@@ -262,7 +268,7 @@ export class RfmService {
     if (!config) throw new NotFoundException('Анализ не найден');
 
     this.validateClientFilters(filters, config.quartilesCount);
-    const filteredQuery = this.buildFilteredScoresQuery(analysisConfigId, filters);
+    const filteredQuery = this.buildFilteredScoresQuery(analysisConfigId, userId, filters);
     const page = filters.page || 1;
     const pageSize = filters.pageSize || 25;
     const totalClients = await filteredQuery.clone().getCount();
@@ -353,28 +359,35 @@ export class RfmService {
     });
     if (!config) throw new NotFoundException('Анализ не найден');
 
-    const score = await this.rfmScoreRepository.findOne({
-      where: { analysisConfigId, clientId },
-      relations: ['client'],
-    });
+    const score = await this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId })
+      .andWhere('score.clientId = :clientId', { clientId })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .getOne();
     if (!score) throw new NotFoundException('Клиент не найден в выбранном анализе');
 
     let transactions: Transaction[] = [];
     let transactionsTotal = 0;
     if (config.periodStart && config.periodEnd) {
-      const where = {
-        clientId,
-        transactionDate: Between(
-          this.parseDateOnly(config.periodStart, 'Дата начала анализа'),
-          this.parseDateOnly(config.periodEnd, 'Дата окончания анализа'),
-        ),
-      };
-      transactionsTotal = await this.transactionRepository.count({ where });
-      transactions = await this.transactionRepository.find({
-        where,
-        order: { transactionDate: 'DESC', id: 'DESC' },
-        take: 100,
-      });
+      const startDate = this.parseDateOnly(config.periodStart, 'Дата начала анализа');
+      const endDate = this.parseDateOnly(config.periodEnd, 'Дата окончания анализа');
+      const transactionQuery = this.transactionRepository
+        .createQueryBuilder('transaction')
+        .innerJoin('transaction.client', 'client')
+        .where('transaction.clientId = :clientId', { clientId })
+        .andWhere('transaction.transactionDate BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        })
+        .andWhere('client.ownerUserId = :userId', { userId });
+      transactionsTotal = await transactionQuery.clone().getCount();
+      transactions = await transactionQuery
+        .orderBy('transaction.transactionDate', 'DESC')
+        .addOrderBy('transaction.id', 'DESC')
+        .take(100)
+        .getMany();
     }
 
     return {
@@ -411,12 +424,14 @@ export class RfmService {
 
   private buildFilteredScoresQuery(
     analysisConfigId: number,
+    userId: number,
     filters: AnalysisClientFilterDto,
   ): SelectQueryBuilder<RfmScore> {
     const query = this.rfmScoreRepository
       .createQueryBuilder('score')
       .innerJoinAndSelect('score.client', 'client')
-      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId });
+      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId })
+      .andWhere('client.ownerUserId = :userId', { userId });
 
     if (filters.segmentPattern) {
       query.andWhere('score.rfmSegment = :segmentPattern', { segmentPattern: filters.segmentPattern });
@@ -515,16 +530,23 @@ export class RfmService {
       throw new NotFoundException('Анализ не найден');
     }
 
-    const scores = await this.rfmScoreRepository.find({
-      where: { analysisConfigId },
-      relations: ['client', 'segments'],
-    });
+    const scores = await this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .leftJoinAndSelect('score.segments', 'segments')
+      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .getMany();
+    const allScoreCount = await this.rfmScoreRepository.count({ where: { analysisConfigId } });
 
     return {
       analysisConfig: this.toPublicConfig(config),
       rfmScores: scores,
       segments: await this.buildSegmentSummaries(scores, config.quartilesCount),
-      interpretation: config.aiInterpretation,
+      // Legacy analyses may have been calculated from shared client data. Do not
+      // expose their aggregate interpretation when some scored clients are not owned
+      // by the requesting account after the ownership migration.
+      interpretation: scores.length === allScoreCount ? config.aiInterpretation : null,
     };
   }
 
@@ -552,9 +574,12 @@ export class RfmService {
       return [];
     }
 
-    const scores = await this.rfmScoreRepository.find({
-      where: { analysisConfigId: latestConfig.id },
-    });
+    const scores = await this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .where('score.analysisConfigId = :analysisConfigId', { analysisConfigId: latestConfig.id })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .getMany();
 
     return this.buildSegmentSummaries(scores, latestConfig.quartilesCount);
   }

@@ -1,7 +1,25 @@
 import api from './api';
-import { Client, Transaction, ImportResult, PaginatedResponse } from '../types';
+import { Client, Transaction, ImportPreview, ImportResult, PaginatedResponse } from '../types';
 
 export const dataService = {
+  async previewCSV(file: File): Promise<ImportPreview> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<ImportPreview>('/data/import/csv/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  async previewExcel(file: File): Promise<ImportPreview> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<ImportPreview>('/data/import/excel/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   async importCSV(file: File): Promise<ImportResult> {
     const formData = new FormData();
     formData.append('file', file);

@@ -42,12 +42,65 @@ describe('DataService imports', () => {
       originalname: 'transactions.csv',
       size: buffer.length,
       buffer,
-    } as Express.Multer.File);
+    } as Express.Multer.File, 42);
 
     expect(result).toEqual({ clientsImported: 1, transactionsImported: 2, errors: 0 });
     expect(clients.save).toHaveBeenCalledTimes(1);
+    expect(clients.save.mock.calls[0][0][0].ownerUserId).toBe(42);
     expect(transactions.save).toHaveBeenCalledTimes(1);
     expect(transactions.save.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('previews CSV rows without writing them to the database', async () => {
+    const content = [
+      'client_id,transaction_date,amount,full_name',
+      'c-1,2026-03-01,12.50,Алексей',
+      'c-1,2026-03-02,7.25,Алексей',
+    ].join('\n');
+    const buffer = Buffer.from(content, 'utf8');
+
+    const preview = await service.previewFromCSV({
+      originalname: 'transactions.csv',
+      size: buffer.length,
+      buffer,
+    } as Express.Multer.File, 42);
+
+    expect(preview).toMatchObject({
+      clientsInFile: 1,
+      transactionsInFile: 2,
+      dateFrom: '2026-03-01',
+      dateTo: '2026-03-02',
+    });
+    expect('sampleRows' in preview && preview.sampleRows).toHaveLength(2);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('reads Windows-1251 semicolon-separated CSV exported from a Cyrillic spreadsheet', async () => {
+    const buffer = Buffer.concat([
+      Buffer.from('client_id;transaction_date;amount;full_name\nc-2;2026-03-04;15.00;', 'ascii'),
+      Buffer.from([0xc0, 0xeb, 0xe5, 0xea, 0xf1, 0xe5, 0xe9]), // Алексей in Windows-1251
+      Buffer.from('\n', 'ascii'),
+    ]);
+    const preview = await service.previewFromCSV({
+      originalname: 'transactions.csv',
+      size: buffer.length,
+      buffer,
+    } as Express.Multer.File, 42);
+
+    expect('sampleRows' in preview && preview.sampleRows[0].fullName).toBe('Алексей');
+    expect('clientsInFile' in preview && preview.clientsInFile).toBe(1);
+  });
+
+  it('reads UTF-16LE BOM CSV using a tab separator', async () => {
+    const text = 'client_id\ttransaction_date\tamount\nc-3\t2026-03-05\t8.25\n';
+    const buffer = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+    const preview = await service.previewFromCSV({
+      originalname: 'transactions.csv',
+      size: buffer.length,
+      buffer,
+    } as Express.Multer.File, 42);
+
+    expect(preview).toMatchObject({ clientsInFile: 1, transactionsInFile: 1 });
   });
 
   it('imports Excel rows through the same validation and storage transaction', async () => {
@@ -63,7 +116,7 @@ describe('DataService imports', () => {
       originalname: 'transactions.xlsx',
       size: buffer.length,
       buffer,
-    } as Express.Multer.File);
+    } as Express.Multer.File, 42);
 
     expect(result).toEqual({ clientsImported: 1, transactionsImported: 1, errors: 0 });
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
@@ -77,7 +130,7 @@ describe('DataService imports', () => {
       originalname: 'transactions.csv',
       size: buffer.length,
       buffer,
-    } as Express.Multer.File)).rejects.toThrow(BadRequestException);
+    } as Express.Multer.File, 42)).rejects.toThrow(BadRequestException);
 
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
@@ -87,7 +140,7 @@ describe('DataService imports', () => {
       originalname: 'transactions.txt',
       size: 4,
       buffer: Buffer.from('data'),
-    } as Express.Multer.File)).rejects.toThrow('Ожидается файл формата .csv');
+    } as Express.Multer.File, 42)).rejects.toThrow('Ожидается файл формата .csv');
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 });

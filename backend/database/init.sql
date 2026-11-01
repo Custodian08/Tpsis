@@ -16,13 +16,16 @@ CREATE TABLE IF NOT EXISTS users (
 -- Создание таблицы клиентов
 CREATE TABLE IF NOT EXISTS clients (
     id SERIAL PRIMARY KEY,
-    client_external_id VARCHAR(255) UNIQUE NOT NULL,
+    client_external_id VARCHAR(255) NOT NULL,
+    owner_user_id INTEGER,
     full_name VARCHAR(255),
     email VARCHAR(255),
     phone VARCHAR(50),
     client_type VARCHAR(50) DEFAULT 'individual',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_clients_owner_user FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT uq_clients_owner_external_id UNIQUE (owner_user_id, client_external_id)
 );
 
 -- Создание таблицы транзакций

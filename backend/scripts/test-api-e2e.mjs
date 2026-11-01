@@ -5,6 +5,7 @@ import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import * as XLSX from 'xlsx';
 
 const { Client } = pg;
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,6 +67,7 @@ async function prepareDatabase() {
       'migrations/001_add_ai_interpretation.sql',
       'migrations/002_store_rfm_calculation_rules.sql',
       'migrations/003_reliability_constraints.sql',
+      'migrations/004_client_data_ownership.sql',
     ]) {
       await db.query(await readFile(path.join(databaseDir, file), 'utf8'));
       console.log(`PASS isolated DB: ${file}`);
@@ -126,6 +128,17 @@ async function main() {
   form.append('file', new Blob([
     'client_id,transaction_date,amount,full_name\nqa-c1,2026-03-01,12.50,Synthetic Client\nqa-c1,2026-03-02,7.25,Synthetic Client',
   ], { type: 'text/csv' }), 'qa.csv');
+  const previewResponse = await request(baseUrl, '/api/data/import/csv/preview', {
+    method: 'POST', cookie: cookie1, body: form,
+  });
+  await expectStatus(previewResponse, 201, 'CSV preview validates a file before saving');
+  const preview = await readJson(previewResponse);
+  check(preview.clientsInFile === 1 && preview.transactionsInFile === 2 && preview.sampleRows.length === 2,
+    'CSV preview returns counts and sample rows');
+  const statsBeforeConfirm = await request(baseUrl, '/api/data/stats', { cookie: cookie1 });
+  await expectStatus(statsBeforeConfirm, 200, 'statistics are available before confirming import');
+  check(Number((await readJson(statsBeforeConfirm)).totalTransactions) === 0,
+    'CSV preview does not write transactions before confirmation');
   const imported = await request(baseUrl, '/api/data/import/csv', { method: 'POST', cookie: cookie1, body: form });
   await expectStatus(imported, 201, 'CSV import accepts a valid file');
   check((await readJson(imported)).transactionsImported === 2, 'CSV import stores repeated-client transactions');
@@ -164,11 +177,67 @@ async function main() {
   });
   await expectStatus(secondRegistration, 201, 'registration creates an isolated second account');
   const cookie2 = authCookie(secondRegistration);
+  const secondImportForm = new FormData();
+  secondImportForm.append('file', new Blob([
+    'client_id,transaction_date,amount,full_name\nqa-c1,2026-03-03,99.00,Second Account Client',
+  ], { type: 'text/csv' }), 'qa-second.csv');
+  const secondImport = await request(baseUrl, '/api/data/import/csv', {
+    method: 'POST', cookie: cookie2, body: secondImportForm,
+  });
+  await expectStatus(secondImport, 201, 'second account can import the same external client ID');
+  const secondStats = await request(baseUrl, '/api/data/stats', { cookie: cookie2 });
+  await expectStatus(secondStats, 200, 'second account statistics request succeeds');
+  const secondStatsData = await readJson(secondStats);
+  check(Number(secondStatsData.totalClients) === 1 && Number(secondStatsData.totalTransactions) === 1,
+    'second account sees only its own client and transaction totals');
+  const secondClients = await request(baseUrl, '/api/data/clients?search=qa-c1', { cookie: cookie2 });
+  await expectStatus(secondClients, 200, 'second account can search its own client');
+  const secondClientPage = await readJson(secondClients);
+  check(secondClientPage.total === 1 && secondClientPage.items[0].fullName === 'Second Account Client',
+    'same external ID resolves to the second account own client');
+  const firstStatsAfterSecondImport = await request(baseUrl, '/api/data/stats', { cookie: cookie1 });
+  await expectStatus(firstStatsAfterSecondImport, 200, 'first account statistics remain available');
+  const firstStatsData = await readJson(firstStatsAfterSecondImport);
+  check(Number(firstStatsData.totalClients) === 1 && Number(firstStatsData.totalTransactions) === 2,
+    'second account import does not change first account statistics');
   const foreignResult = await request(baseUrl, `/api/rfm/results/${analysis.analysisConfigId}`, { cookie: cookie2 });
   await expectStatus(foreignResult, 404, 'another account cannot retrieve the first account analysis');
   const secondHistory = await request(baseUrl, '/api/rfm/analyses', { cookie: cookie2 });
   await expectStatus(secondHistory, 200, 'second account can access its own history');
   check((await readJson(secondHistory)).items.length === 0, 'analysis history is scoped to its owner');
+
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    ['client_id', 'transaction_date', 'amount', 'full_name'],
+    ['qa-excel-client', '2026-03-05', 33.5, 'Excel Client'],
+  ]);
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+  const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const excelForm = new FormData();
+  excelForm.append('file', new Blob([new Uint8Array(excelBuffer)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }), 'qa.xlsx');
+  const excelPreviewResponse = await request(baseUrl, '/api/data/import/excel/preview', {
+    method: 'POST', cookie: cookie1, body: excelForm,
+  });
+  await expectStatus(excelPreviewResponse, 201, 'Excel preview validates workbook before saving');
+  const excelPreview = await readJson(excelPreviewResponse);
+  check(excelPreview.clientsInFile === 1 && excelPreview.transactionsInFile === 1,
+    'Excel preview returns parsed row counts');
+  const excelImportForm = new FormData();
+  excelImportForm.append('file', new Blob([new Uint8Array(excelBuffer)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }), 'qa.xlsx');
+  const excelImport = await request(baseUrl, '/api/data/import/excel', {
+    method: 'POST', cookie: cookie1, body: excelImportForm,
+  });
+  await expectStatus(excelImport, 201, 'Excel import persists the confirmed workbook');
+  check((await readJson(excelImport)).transactionsImported === 1, 'Excel import stores the validated transaction');
+  const firstStatsWithExcel = await request(baseUrl, '/api/data/stats', { cookie: cookie1 });
+  await expectStatus(firstStatsWithExcel, 200, 'account statistics include confirmed Excel import');
+  const firstStatsWithExcelData = await readJson(firstStatsWithExcel);
+  check(Number(firstStatsWithExcelData.totalClients) === 2 && Number(firstStatsWithExcelData.totalTransactions) === 3,
+    'confirmed Excel import updates only its owning account totals');
 
   const logout = await request(baseUrl, '/api/auth/logout', { method: 'POST', cookie: cookie1 });
   await expectStatus(logout, 204, 'logout clears the session cookie');

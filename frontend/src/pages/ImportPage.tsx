@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { Upload as UploadIcon } from '@mui/icons-material';
 import { dataService } from '../services/data.service';
-import { ImportResult } from '../types';
+import { ImportPreview, ImportResult } from '../types';
 import { getApiErrorMessage } from '../utils/apiErrorMessage';
 
 const MAX_IMPORT_SIZE_BYTES = 10 * 1024 * 1024;
@@ -31,6 +31,7 @@ function getImportErrorMessage(error: unknown, fallback: string) {
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState('');
 
@@ -44,8 +45,35 @@ export default function ImportPage() {
         return;
       }
       setFile(selectedFile);
+      setPreview(null);
       setError('');
       setResult(null);
+    }
+  };
+
+  const handlePreviewCSV = async () => {
+    if (!file) return;
+    setLoading(true);
+    setError('');
+    try {
+      setPreview(await dataService.previewCSV(file));
+    } catch (err: any) {
+      setError(getImportErrorMessage(err, 'Не удалось проверить CSV'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreviewExcel = async () => {
+    if (!file) return;
+    setLoading(true);
+    setError('');
+    try {
+      setPreview(await dataService.previewExcel(file));
+    } catch (err: any) {
+      setError(getImportErrorMessage(err, 'Не удалось проверить Excel'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,8 +109,17 @@ export default function ImportPage() {
 
   const retryImport = () => {
     if (!file) return;
-    if (file.name.toLowerCase().endsWith('.csv')) void handleImportCSV();
-    else if (/\.(xlsx|xls)$/i.test(file.name)) void handleImportExcel();
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      void (preview ? handleImportCSV() : handlePreviewCSV());
+    } else if (/\.(xlsx|xls)$/i.test(file.name)) {
+      void (preview ? handleImportExcel() : handlePreviewExcel());
+    }
+  };
+
+  const clearPreview = () => {
+    setPreview(null);
+    setResult(null);
+    setError('');
   };
 
   return (
@@ -91,7 +128,7 @@ export default function ImportPage() {
         Импорт данных
       </Typography>
       <Typography variant="body1" color="text.secondary" gutterBottom>
-        Загрузите данные о клиентах и транзакциях для анализа
+        Сначала проверьте файл и пример строк, затем подтвердите сохранение данных в базе
       </Typography>
 
       <Paper sx={{ mt: 3, p: 3 }}>
@@ -119,21 +156,26 @@ export default function ImportPage() {
           <Button
             variant="contained"
             startIcon={<UploadIcon />}
-            onClick={handleImportCSV}
-            disabled={!file || !file.name.toLowerCase().endsWith('.csv') || loading}
+            onClick={preview ? handleImportCSV : handlePreviewCSV}
+            disabled={!file || !file.name.toLowerCase().endsWith('.csv') || loading || Boolean(result)}
             aria-busy={loading}
           >
-            Импортировать CSV
+            {result ? 'Импорт завершён' : preview ? 'Подтвердить импорт CSV' : 'Проверить CSV'}
           </Button>
           <Button
             variant="outlined"
             startIcon={<UploadIcon />}
-            onClick={handleImportExcel}
-            disabled={!file || !/\.(xlsx|xls)$/i.test(file.name) || loading}
+            onClick={preview ? handleImportExcel : handlePreviewExcel}
+            disabled={!file || !/\.(xlsx|xls)$/i.test(file.name) || loading || Boolean(result)}
             aria-busy={loading}
           >
-            Импортировать Excel
+            {result ? 'Импорт завершён' : preview ? 'Подтвердить импорт Excel' : 'Проверить Excel'}
           </Button>
+          {preview && (
+            <Button variant="text" disabled={loading} onClick={clearPreview}>
+              Выбрать другой файл
+            </Button>
+          )}
         </Box>
 
         {loading && (
@@ -146,6 +188,45 @@ export default function ImportPage() {
           <Alert severity="error" sx={{ mt: 2 }} action={file ? <Button color="inherit" size="small" disabled={loading} onClick={retryImport}>Повторить</Button> : undefined}>
             <span style={{ whiteSpace: 'pre-line' }}>{error}</span>
           </Alert>
+        )}
+
+        {preview && (
+          <Box sx={{ mt: 3 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Файл прошёл проверку и пока не сохранён в базе. Найдено клиентов: {preview.clientsInFile};
+              {' '}транзакций: {preview.transactionsInFile}; период: {preview.dateFrom} — {preview.dateTo}.
+              {' '}Перед импортом проверьте пример строк ниже.
+            </Alert>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small" aria-label="Пример данных перед импортом">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID клиента</TableCell>
+                    <TableCell>Имя</TableCell>
+                    <TableCell>Дата</TableCell>
+                    <TableCell align="right">Сумма, BYN</TableCell>
+                    <TableCell align="right">Товары</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {preview.sampleRows.map((row, index) => (
+                    <TableRow key={`${row.clientExternalId}-${row.transactionDate}-${index}`}>
+                      <TableCell>{row.clientExternalId}</TableCell>
+                      <TableCell>{row.fullName || '—'}</TableCell>
+                      <TableCell>{row.transactionDate}</TableCell>
+                      <TableCell align="right">{row.amount.toFixed(2)}</TableCell>
+                      <TableCell align="right">{row.itemsCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {preview.transactionsInFile > preview.sampleRows.length && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                Показаны первые {preview.sampleRows.length} строк.
+              </Typography>
+            )}
+          </Box>
         )}
 
         {result && (
@@ -193,6 +274,10 @@ export default function ImportPage() {
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
           Файл должен содержать следующие столбцы:
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Для CSV автоматически распознаются разделители запятая, точка с запятой и табуляция,
+          а также UTF-8, UTF-16 с BOM и Windows-1251.
         </Typography>
         <TableContainer>
           <Table size="small">

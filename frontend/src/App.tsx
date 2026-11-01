@@ -1,18 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Layout from './components/Layout';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import ImportPage from './pages/ImportPage';
-import RfmAnalysisPage from './pages/RfmAnalysisPage';
-import VisualizationPage from './pages/VisualizationPage';
-import SegmentsPage from './pages/SegmentsPage';
-import ExportPage from './pages/ExportPage';
-import AnalysisHistoryPage from './pages/AnalysisHistoryPage';
-import AnalysisResultPage from './pages/AnalysisResultPage';
 import { useAuthStore } from './store/authStore';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ImportPage = lazy(() => import('./pages/ImportPage'));
+const RfmAnalysisPage = lazy(() => import('./pages/RfmAnalysisPage'));
+const VisualizationPage = lazy(() => import('./pages/VisualizationPage'));
+const SegmentsPage = lazy(() => import('./pages/SegmentsPage'));
+const ExportPage = lazy(() => import('./pages/ExportPage'));
+const AnalysisHistoryPage = lazy(() => import('./pages/AnalysisHistoryPage'));
+const AnalysisResultPage = lazy(() => import('./pages/AnalysisResultPage'));
 
 const theme = createTheme({
   palette: {
@@ -130,21 +132,23 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
-        <Routes>
-          <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/dashboard" />} />
-          <Route path="/register" element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/dashboard" />} />
-          <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/login" />}>
-            <Route index element={<Navigate to="/dashboard" />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="import" element={<ImportPage />} />
-            <Route path="rfm-analysis" element={<RfmAnalysisPage />} />
-            <Route path="analysis-history" element={<AnalysisHistoryPage />} />
-            <Route path="analyses/:configId" element={<AnalysisResultPage />} />
-            <Route path="visualization" element={<VisualizationPage />} />
-            <Route path="segments" element={<SegmentsPage />} />
-            <Route path="export" element={<ExportPage />} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<div role="status" style={{ padding: 24 }}>Загрузка страницы…</div>}>
+          <Routes>
+            <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/dashboard" />} />
+            <Route path="/register" element={!isAuthenticated ? <RegisterPage /> : <Navigate to="/dashboard" />} />
+            <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/login" />}>
+              <Route index element={<Navigate to="/dashboard" />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="import" element={<ImportPage />} />
+              <Route path="rfm-analysis" element={<RfmAnalysisPage />} />
+              <Route path="analysis-history" element={<AnalysisHistoryPage />} />
+              <Route path="analyses/:configId" element={<AnalysisResultPage />} />
+              <Route path="visualization" element={<VisualizationPage />} />
+              <Route path="segments" element={<SegmentsPage />} />
+              <Route path="export" element={<ExportPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </Router>
     </ThemeProvider>
   );

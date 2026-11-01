@@ -20,10 +20,12 @@ export class SegmentsService {
     const config = await this.getLatestConfig(userId);
     if (!config) return [];
 
-    const scores = await this.rfmScoreRepository.find({
-      where: { analysisConfigId: config.id },
-      relations: ['client'],
-    });
+    const scores = await this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .where('score.analysisConfigId = :configId', { configId: config.id })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .getMany();
     return this.summarizeSegments(scores);
   }
 
@@ -34,10 +36,13 @@ export class SegmentsService {
     const segment = await this.segmentRepository.findOne({ where: { id } });
     if (!segment) throw new NotFoundException('Сегмент не найден');
 
-    const scores = await this.rfmScoreRepository.find({
-      where: { analysisConfigId: config.id, rfmSegment: segment.rfmPattern },
-      relations: ['client'],
-    });
+    const scores = await this.rfmScoreRepository
+      .createQueryBuilder('score')
+      .innerJoinAndSelect('score.client', 'client')
+      .where('score.analysisConfigId = :configId', { configId: config.id })
+      .andWhere('score.rfmSegment = :pattern', { pattern: segment.rfmPattern })
+      .andWhere('client.ownerUserId = :userId', { userId })
+      .getMany();
     if (!scores.length) throw new NotFoundException('Сегмент не найден');
 
     return { ...this.summarizeSegment(segment, scores), rfmScores: scores };

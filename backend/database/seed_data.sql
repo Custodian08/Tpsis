@@ -8,8 +8,11 @@ INSERT INTO users (email, password, full_name, role) VALUES
 ('user@example.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Тестовый пользователь', 'user')
 ON CONFLICT (email) DO NOTHING;
 
--- Вставка тестовых клиентов
-INSERT INTO clients (client_external_id, full_name, email, phone, client_type) VALUES
+-- Тестовые клиенты принадлежат тестовому пользователю; один и тот же внешний
+-- идентификатор разрешён в независимых наборах разных учётных записей.
+INSERT INTO clients (client_external_id, owner_user_id, full_name, email, phone, client_type)
+SELECT sample.client_external_id, test_user.id, sample.full_name, sample.email, sample.phone, sample.client_type
+FROM (VALUES
 ('1', 'Иванов Иван Иванович', 'ivanov@example.com', '+375291234567', 'individual'),
 ('2', 'Петров Петр Петрович', 'petrov@example.com', '+375292345678', 'individual'),
 ('3', 'Сидорова Анна Сергеевна', 'sidorova@example.com', '+375293456789', 'individual'),
@@ -20,7 +23,10 @@ INSERT INTO clients (client_external_id, full_name, email, phone, client_type) V
 ('8', 'Соколов Андрей Петрович', 'sokolov@example.com', '+375298901234', 'individual'),
 ('9', 'Лебедева Ольга Сергеевна', 'lebedeva@example.com', '+375299012345', 'individual'),
 ('10', 'Кузнецов Алексей Михайлович', 'kuznetsov@example.com', '+375291234568', 'corporate')
-ON CONFLICT (client_external_id) DO NOTHING;
+) AS sample(client_external_id, full_name, email, phone, client_type)
+CROSS JOIN users AS test_user
+WHERE test_user.email = 'user@example.com'
+ON CONFLICT (owner_user_id, client_external_id) DO NOTHING;
 
 -- Вставка тестовых транзакций
 INSERT INTO transactions (client_id, transaction_date, amount, items_count, payment_method) VALUES
